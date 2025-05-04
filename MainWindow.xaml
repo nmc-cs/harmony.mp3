@@ -5,8 +5,113 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Harmony"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="Harmony Music Player" Height="550" Width="900"
+        Background="#121212">
 
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="100"/>
+        </Grid.RowDefinitions>
+
+        <!-- Main content area with playlist -->
+        <Grid Grid.Row="0" Background="#1E1E1E" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Playlist -->
+            <ListBox Name="playlistListBox"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     SelectionMode="Single">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Title}" 
+                                       Foreground="White" 
+                                       FontSize="14" 
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Reserved space for album art -->
+            <Border Grid.Column="1" Width="200" Background="#1A1A1A" Margin="10,0,0,0">
+                <TextBlock Text="Album Art" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+        </Grid>
+
+        <!-- Timeline Slider -->
+        <Grid Grid.Row="1" Margin="10,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Current position -->
+            <TextBlock Foreground="White" 
+                       VerticalAlignment="Center" 
+                       Margin="0,0,10,0"
+                       Text="00:00"/>
+
+            <!-- Timeline slider -->
+            <Slider Grid.Column="1" 
+                    Name="timelineSlider"
+                    Minimum="0" 
+                    Maximum="1"
+                    Background="Gray"/>
+
+            <!-- Duration -->
+            <TextBlock Grid.Column="2" 
+                       Foreground="White" 
+                       VerticalAlignment="Center" 
+                       Margin="10,0,0,0"
+                       Text="00:00"/>
+        </Grid>
+
+        <!-- Playback controls -->
+        <Grid Grid.Row="2" Background="#1E1E1E" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Track info -->
+            <TextBlock Text="No track selected" 
+                       Foreground="White" 
+                       FontSize="16" 
+                       FontWeight="SemiBold"
+                       Margin="10"
+                       VerticalAlignment="Center"/>
+
+            <!-- Playback controls -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Button Content="⏮" FontSize="24" Background="Transparent" Foreground="White" Margin="5"/>
+                <Button Content="⏹" FontSize="24" Background="Transparent" Foreground="White" Margin="5"/>
+                <Button Content="▶" FontSize="24" Background="Transparent" Foreground="White" Margin="5"/>
+                <Button Content="⏭" FontSize="24" Background="Transparent" Foreground="White" Margin="5"/>
+                <Button Content="📂" FontSize="20" Background="Transparent" Foreground="White" Margin="15,5,5,5"/>
+            </StackPanel>
+
+            <!-- Volume control -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                <TextBlock Text="🔊" Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <Slider Width="100" Minimum="0" Maximum="1" Value="0.7" Background="Gray"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
