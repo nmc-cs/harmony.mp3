@@ -4,12 +4,15 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Harmony"
+        xmlns:utils="clr-namespace:Harmony.Utils"
         mc:Ignorable="d"
         Title="Harmony Music Player" Height="550" Width="900"
         Background="#121212">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <utils:BoolToSymbolConverter x:Key="BoolToSymbolConverter"/>
+        <utils:BoolToCommandConverter x:Key="BoolToCommandConverter"/>
     </Window.Resources>
 
     <Grid>
@@ -30,7 +33,9 @@
             <ListBox Name="playlistListBox"
                      Background="Transparent"
                      BorderThickness="0"
-                     SelectionMode="Single">
+                     SelectionMode="Single"
+                     ItemsSource="{Binding CurrentPlaylist.Files}"
+                     SelectedIndex="{Binding CurrentPlaylist.CurrentIndex, Mode=TwoWay}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid>
@@ -45,11 +50,16 @@
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
+                <ListBox.InputBindings>
+                    <MouseBinding MouseAction="LeftDoubleClick" 
+                                 Command="{Binding PlaySelectedTrackCommand}" 
+                                 CommandParameter="{Binding ElementName=playlistListBox, Path=SelectedIndex}"/>
+                </ListBox.InputBindings>
             </ListBox>
 
             <!-- Reserved space for album art -->
             <Border Grid.Column="1" Width="200" Background="#1A1A1A" Margin="10,0,0,0">
-                <TextBlock Text="Album Art" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Image Source="{Binding CurrentTrack.AlbumArt}" Stretch="Uniform"/>
             </Border>
         </Grid>
 
@@ -65,21 +75,25 @@
             <TextBlock Foreground="White" 
                        VerticalAlignment="Center" 
                        Margin="0,0,10,0"
-                       Text="00:00"/>
+                       Text="{Binding CurrentPosition, StringFormat=mm\\:ss}"/>
 
             <!-- Timeline slider -->
             <Slider Grid.Column="1" 
                     Name="timelineSlider"
                     Minimum="0" 
                     Maximum="1"
-                    Background="Gray"/>
+                    Value="{Binding CurrentPosition.TotalSeconds, Mode=OneWay}"
+                    IsEnabled="{Binding IsPlaying}"
+                    Background="Gray"
+                    PreviewMouseDown="TimelineSlider_PreviewMouseDown"
+                    PreviewMouseUp="TimelineSlider_PreviewMouseUp"/>
 
             <!-- Duration -->
             <TextBlock Grid.Column="2" 
                        Foreground="White" 
                        VerticalAlignment="Center" 
                        Margin="10,0,0,0"
-                       Text="00:00"/>
+                       Text="{Binding Duration, StringFormat=mm\\:ss}"/>
         </Grid>
 
         <!-- Playback controls -->
@@ -91,7 +105,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- Track info -->
-            <TextBlock Text="No track selected" 
+            <TextBlock Text="{Binding CurrentTrackText}" 
                        Foreground="White" 
                        FontSize="16" 
                        FontWeight="SemiBold"
@@ -100,17 +114,23 @@
 
             <!-- Playback controls -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Button Content="⏮" FontSize="24" Background="Transparent" Foreground="White" Margin="5"/>
-                <Button Content="⏹" FontSize="24" Background="Transparent" Foreground="White" Margin="5"/>
-                <Button Content="▶" FontSize="24" Background="Transparent" Foreground="White" Margin="5"/>
-                <Button Content="⏭" FontSize="24" Background="Transparent" Foreground="White" Margin="5"/>
-                <Button Content="📂" FontSize="20" Background="Transparent" Foreground="White" Margin="15,5,5,5"/>
+                <Button Content="⏮" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
+                        Command="{Binding PreviousCommand}"/>
+                <Button Content="⏹" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
+                        Command="{Binding StopCommand}"/>
+                <Button Content="{Binding IsPlaying, Converter={StaticResource BoolToSymbolConverter}, ConverterParameter='▶|⏸'}" 
+                        FontSize="24" Background="Transparent" Foreground="White" Margin="5"
+                        Command="{Binding IsPlaying, Converter={StaticResource BoolToCommandConverter}, ConverterParameter=PauseCommand|PlayCommand}"/>
+                <Button Content="⏭" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
+                        Command="{Binding NextCommand}"/>
+                <Button Content="📂" FontSize="20" Background="Transparent" Foreground="White" Margin="15,5,5,5"
+                        Command="{Binding LoadFilesCommand}"/>
             </StackPanel>
 
             <!-- Volume control -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
                 <TextBlock Text="🔊" Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <Slider Width="100" Minimum="0" Maximum="1" Value="0.7" Background="Gray"/>
+                <Slider Width="100" Minimum="0" Maximum="1" Value="{Binding Volume, Mode=TwoWay}" Background="Gray"/>
             </StackPanel>
         </Grid>
     </Grid>

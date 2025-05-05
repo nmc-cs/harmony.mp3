@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Harmony.Models;
 using Harmony.Services;
+using System.Windows.Threading;
 
 namespace Harmony.ViewModels
 {
@@ -11,6 +12,7 @@ namespace Harmony.ViewModels
     {
         private readonly AudioPlaybackService _audioService;
         private readonly PlaylistManager _playlistManager;
+        private readonly DispatcherTimer _commandUpdateTimer;
 
         private bool _isPlaying;
         private double _volume = 1.0;
@@ -28,6 +30,8 @@ namespace Harmony.ViewModels
                 {
                     _isPlaying = value;
                     OnPropertyChanged();
+                    // Update commands when playback state changes
+                    CommandManager.InvalidateRequerySuggested();
                 }
             }
         }
@@ -129,6 +133,7 @@ namespace Harmony.ViewModels
             _audioService.PlaybackStarted += (s, e) => IsPlaying = true;
             _audioService.PlaybackPaused += (s, e) => IsPlaying = false;
             _audioService.PlaybackStopped += (s, e) => IsPlaying = false;
+            _audioService.MediaEnded += (s, e) => IsPlaying = false;
 
             _playlistManager.CurrentTrackChanged += (s, track) => CurrentTrack = track;
 
@@ -145,15 +150,35 @@ namespace Harmony.ViewModels
             // Set default values
             CurrentTrackText = "No track selected";
             Volume = 0.7; // 70% volume by default
+
+            // Create a timer to periodically update command states
+            _commandUpdateTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _commandUpdateTimer.Tick += (s, e) => CommandManager.InvalidateRequerySuggested();
+            _commandUpdateTimer.Start();
         }
 
-        private bool CanPlay() => _audioService.CurrentFile != null;
+        private bool CanPlay() => _audioService.CurrentFile != null && !IsPlaying;
         private bool CanPause() => IsPlaying;
         private bool CanStop() => IsPlaying;
         private bool CanNext() => CurrentPlaylist?.HasNext ?? false;
         private bool CanPrevious() => CurrentPlaylist?.HasPrevious ?? false;
 
-        private void Play() => _audioService.Play();
+        private void Play()
+        {
+            if (_audioService.CurrentFile == null && CurrentPlaylist?.Files.Count > 0)
+            {
+                // If nothing is loaded yet but we have files, play the first one
+                PlaySelectedTrack(0);
+            }
+            else
+            {
+                _audioService.Play();
+            }
+        }
+
         private void Pause() => _audioService.Pause();
         private void Stop() => _audioService.Stop();
         private void Next() => _playlistManager.PlayNext();
@@ -172,8 +197,8 @@ namespace Harmony.ViewModels
         private void PlaySelectedTrack(int index) => _playlistManager.PlayTrack(index);
 
         // INotifyPropertyChanged implementation
-        public event PropertyChangedEventHandler PropertyChanged;
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
@@ -191,9 +216,9 @@ namespace Harmony.ViewModels
             _canExecute = canExecute;
         }
 
-        public bool CanExecute(object parameter) => _canExecute?.Invoke(parameter) ?? true;
-        public void Execute(object parameter) => _execute(parameter);
-        public event EventHandler CanExecuteChanged
+        public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
+        public void Execute(object? parameter) => _execute(parameter);
+        public event EventHandler? CanExecuteChanged
         {
             add => CommandManager.RequerySuggested += value;
             remove => CommandManager.RequerySuggested -= value;
