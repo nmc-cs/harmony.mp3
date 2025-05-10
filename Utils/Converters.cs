@@ -30,6 +30,9 @@ namespace Harmony.Utils
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            if (value == null)
+                return null;
+
             bool boolValue = (bool)value;
             string[] commandNames = ((string)parameter).Split('|');
             string commandName = boolValue ? commandNames[0] : commandNames[1];

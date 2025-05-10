@@ -17,9 +17,11 @@ namespace Harmony.ViewModels
         private bool _isPlaying;
         private double _volume = 1.0;
         private TimeSpan _currentPosition;
+        private double _currentPositionSeconds; // New property for slider binding
         private TimeSpan _duration;
-        private AudioFile _currentTrack;
-        private string _currentTrackText;
+        private AudioFile? _currentTrack;
+        private string _currentTrackText = "No track selected"; // Initialize with default value
+        private PlaybackState _playbackState = PlaybackState.Stopped;
 
         public bool IsPlaying
         {
@@ -29,8 +31,27 @@ namespace Harmony.ViewModels
                 if (_isPlaying != value)
                 {
                     _isPlaying = value;
+
+                    // Update playback state based on IsPlaying
+                    PlaybackState = value ? PlaybackState.Playing :
+                        (_audioService.Position.TotalSeconds > 0 ? PlaybackState.Paused : PlaybackState.Stopped);
+
                     OnPropertyChanged();
                     // Update commands when playback state changes
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public PlaybackState PlaybackState
+        {
+            get => _playbackState;
+            set
+            {
+                if (_playbackState != value)
+                {
+                    _playbackState = value;
+                    OnPropertyChanged();
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -58,7 +79,26 @@ namespace Harmony.ViewModels
                 if (_currentPosition != value)
                 {
                     _currentPosition = value;
+                    _currentPositionSeconds = value.TotalSeconds; // Update seconds when TimeSpan changes
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(CurrentPositionSeconds));
+                }
+            }
+        }
+
+        // New property for binding to the slider
+        public double CurrentPositionSeconds
+        {
+            get => _currentPositionSeconds;
+            set
+            {
+                if (_currentPositionSeconds != value)
+                {
+                    _currentPositionSeconds = value;
+                    OnPropertyChanged();
+
+                    // Don't update CurrentPosition here to avoid circular updates
+                    // The seek operation will be handled by the SeekCommand
                 }
             }
         }
@@ -76,7 +116,7 @@ namespace Harmony.ViewModels
             }
         }
 
-        public AudioFile CurrentTrack
+        public AudioFile? CurrentTrack
         {
             get => _currentTrack;
             set
@@ -114,6 +154,7 @@ namespace Harmony.ViewModels
         public ICommand LoadFilesCommand { get; private set; }
         public ICommand SeekCommand { get; private set; }
         public ICommand PlaySelectedTrackCommand { get; private set; }
+        public ICommand PlaybackControlCommand { get; private set; }
 
         public MainViewModel()
         {
@@ -130,10 +171,29 @@ namespace Harmony.ViewModels
                 }
             };
 
-            _audioService.PlaybackStarted += (s, e) => IsPlaying = true;
-            _audioService.PlaybackPaused += (s, e) => IsPlaying = false;
-            _audioService.PlaybackStopped += (s, e) => IsPlaying = false;
-            _audioService.MediaEnded += (s, e) => IsPlaying = false;
+            _audioService.PlaybackStarted += (s, e) =>
+            {
+                IsPlaying = true;
+                PlaybackState = PlaybackState.Playing;
+            };
+
+            _audioService.PlaybackPaused += (s, e) =>
+            {
+                IsPlaying = false;
+                PlaybackState = PlaybackState.Paused;
+            };
+
+            _audioService.PlaybackStopped += (s, e) =>
+            {
+                IsPlaying = false;
+                PlaybackState = PlaybackState.Stopped;
+            };
+
+            _audioService.MediaEnded += (s, e) =>
+            {
+                IsPlaying = false;
+                PlaybackState = PlaybackState.Stopped;
+            };
 
             _playlistManager.CurrentTrackChanged += (s, track) => CurrentTrack = track;
 
@@ -146,6 +206,9 @@ namespace Harmony.ViewModels
             LoadFilesCommand = new RelayCommand(_ => LoadFiles());
             SeekCommand = new RelayCommand(position => Seek((double)position));
             PlaySelectedTrackCommand = new RelayCommand(index => PlaySelectedTrack((int)index), _ => CurrentPlaylist?.Files.Count > 0);
+
+            // New command that handles all playback states
+            PlaybackControlCommand = new RelayCommand(_ => TogglePlayback());
 
             // Set default values
             CurrentTrackText = "No track selected";
@@ -162,7 +225,7 @@ namespace Harmony.ViewModels
 
         private bool CanPlay() => _audioService.CurrentFile != null && !IsPlaying;
         private bool CanPause() => IsPlaying;
-        private bool CanStop() => IsPlaying;
+        private bool CanStop() => IsPlaying || PlaybackState == PlaybackState.Paused;
         private bool CanNext() => CurrentPlaylist?.HasNext ?? false;
         private bool CanPrevious() => CurrentPlaylist?.HasPrevious ?? false;
 
@@ -185,11 +248,28 @@ namespace Harmony.ViewModels
         private void Previous() => _playlistManager.PlayPrevious();
         private void LoadFiles() => _playlistManager.LoadFiles();
 
+        // New method to handle the combined button functionality
+        private void TogglePlayback()
+        {
+            switch (PlaybackState)
+            {
+                case PlaybackState.Playing:
+                    Pause();
+                    break;
+                case PlaybackState.Paused:
+                    Play();
+                    break;
+                case PlaybackState.Stopped:
+                    Play();
+                    break;
+            }
+        }
+
         private void Seek(double position)
         {
             if (Duration.TotalSeconds > 0)
             {
-                var seekPosition = TimeSpan.FromSeconds(position * Duration.TotalSeconds);
+                var seekPosition = TimeSpan.FromSeconds(position);
                 _audioService.Seek(seekPosition);
             }
         }
@@ -208,16 +288,16 @@ namespace Harmony.ViewModels
     public class RelayCommand : ICommand
     {
         private readonly Action<object> _execute;
-        private readonly Predicate<object> _canExecute;
+        private readonly Predicate<object>? _canExecute;
 
-        public RelayCommand(Action<object> execute, Predicate<object> canExecute = null)
+        public RelayCommand(Action<object> execute, Predicate<object>? canExecute = null)
         {
             _execute = execute ?? throw new ArgumentNullException(nameof(execute));
             _canExecute = canExecute;
         }
 
-        public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
-        public void Execute(object? parameter) => _execute(parameter);
+        public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter ?? new object()) ?? true;
+        public void Execute(object? parameter) => _execute(parameter ?? new object());
         public event EventHandler? CanExecuteChanged
         {
             add => CommandManager.RequerySuggested += value;

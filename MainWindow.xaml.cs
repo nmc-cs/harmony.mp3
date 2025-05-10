@@ -1,4 +1,6 @@
 ﻿using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Harmony.ViewModels;
 
@@ -18,18 +20,22 @@ namespace Harmony
             DataContext = _viewModel;
         }
 
-        private void TimelineSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        private void TimelineSlider_DragStarted(object sender, DragStartedEventArgs e)
         {
             _isDraggingSlider = true;
         }
 
-        private void TimelineSlider_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        private void TimelineSlider_DragCompleted(object sender, DragCompletedEventArgs e)
         {
             if (_isDraggingSlider)
             {
-                // Get the new slider value and pass it to the SeekCommand
-                double sliderValue = timelineSlider.Value;
-                _viewModel.SeekCommand.Execute(sliderValue);
+                // Get the new slider value and seek to that position
+                var slider = sender as Slider;
+                if (slider != null)
+                {
+                    double sliderValue = slider.Value;
+                    _viewModel.SeekCommand.Execute(sliderValue);
+                }
                 _isDraggingSlider = false;
             }
         }

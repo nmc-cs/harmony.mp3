@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Harmony"
         xmlns:utils="clr-namespace:Harmony.Utils"
+        xmlns:models="clr-namespace:Harmony.Models"
         mc:Ignorable="d"
         Title="Harmony Music Player" Height="550" Width="900"
         Background="#121212">
@@ -13,6 +14,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <utils:BoolToSymbolConverter x:Key="BoolToSymbolConverter"/>
         <utils:BoolToCommandConverter x:Key="BoolToCommandConverter"/>
+        <utils:PlaybackStateToSymbolConverter x:Key="PlaybackStateToSymbolConverter"/>
     </Window.Resources>
 
     <Grid>
@@ -79,14 +81,14 @@
 
             <!-- Timeline slider -->
             <Slider Grid.Column="1" 
-                    Name="timelineSlider"
-                    Minimum="0" 
-                    Maximum="1"
-                    Value="{Binding CurrentPosition.TotalSeconds, Mode=OneWay}"
-                    IsEnabled="{Binding IsPlaying}"
-                    Background="Gray"
-                    PreviewMouseDown="TimelineSlider_PreviewMouseDown"
-                    PreviewMouseUp="TimelineSlider_PreviewMouseUp"/>
+                Name="timelineSlider"
+                Minimum="0" 
+                Maximum="{Binding Duration.TotalSeconds, Mode=OneWay}"
+                Value="{Binding CurrentPositionSeconds, Mode=TwoWay}"
+                IsEnabled="{Binding CurrentTrack, Converter={StaticResource BoolToVis}}"
+                Background="Gray"
+                Thumb.DragStarted="TimelineSlider_DragStarted"
+                Thumb.DragCompleted="TimelineSlider_DragCompleted"/>
 
             <!-- Duration -->
             <TextBlock Grid.Column="2" 
@@ -116,11 +118,9 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Button Content="⏮" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
                         Command="{Binding PreviousCommand}"/>
-                <Button Content="⏹" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
-                        Command="{Binding StopCommand}"/>
-                <Button Content="{Binding IsPlaying, Converter={StaticResource BoolToSymbolConverter}, ConverterParameter='▶|⏸'}" 
+                <Button Content="{Binding PlaybackState, Converter={StaticResource PlaybackStateToSymbolConverter}}" 
                         FontSize="24" Background="Transparent" Foreground="White" Margin="5"
-                        Command="{Binding IsPlaying, Converter={StaticResource BoolToCommandConverter}, ConverterParameter=PauseCommand|PlayCommand}"/>
+                        Command="{Binding PlaybackControlCommand}"/>
                 <Button Content="⏭" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
                         Command="{Binding NextCommand}"/>
                 <Button Content="📂" FontSize="20" Background="Transparent" Foreground="White" Margin="15,5,5,5"
