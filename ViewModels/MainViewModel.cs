@@ -17,7 +17,7 @@ namespace Harmony.ViewModels
         private bool _isPlaying;
         private double _volume = 1.0;
         private TimeSpan _currentPosition;
-        private double _currentPositionSeconds; // New property for slider binding
+        private double _currentPositionSeconds; // Property for slider binding
         private TimeSpan _duration;
         private AudioFile? _currentTrack;
         private string _currentTrackText = "No track selected"; // Initialize with default value
@@ -86,7 +86,7 @@ namespace Harmony.ViewModels
             }
         }
 
-        // New property for binding to the slider
+        // Property for binding to the slider
         public double CurrentPositionSeconds
         {
             get => _currentPositionSeconds;
@@ -207,7 +207,7 @@ namespace Harmony.ViewModels
             SeekCommand = new RelayCommand(position => Seek((double)position));
             PlaySelectedTrackCommand = new RelayCommand(index => PlaySelectedTrack((int)index), _ => CurrentPlaylist?.Files.Count > 0);
 
-            // New command that handles all playback states
+            // Command that handles all playback states
             PlaybackControlCommand = new RelayCommand(_ => TogglePlayback());
 
             // Set default values
@@ -248,7 +248,7 @@ namespace Harmony.ViewModels
         private void Previous() => _playlistManager.PlayPrevious();
         private void LoadFiles() => _playlistManager.LoadFiles();
 
-        // New method to handle the combined button functionality
+        // Method to handle the combined button functionality
         private void TogglePlayback()
         {
             switch (PlaybackState)
@@ -269,8 +269,23 @@ namespace Harmony.ViewModels
         {
             if (Duration.TotalSeconds > 0)
             {
+                // Make sure we're seeking to a valid position
+                if (position < 0)
+                    position = 0;
+                if (position > Duration.TotalSeconds)
+                    position = Duration.TotalSeconds;
+
                 var seekPosition = TimeSpan.FromSeconds(position);
                 _audioService.Seek(seekPosition);
+
+                // Update our position properties to reflect the new position immediately
+                CurrentPosition = seekPosition;
+
+                // If we're stopped or paused, start playback
+                if (PlaybackState == PlaybackState.Stopped || PlaybackState == PlaybackState.Paused)
+                {
+                    Play();
+                }
             }
         }
 

@@ -81,14 +81,13 @@
 
             <!-- Timeline slider -->
             <Slider Grid.Column="1" 
-                Name="timelineSlider"
-                Minimum="0" 
-                Maximum="{Binding Duration.TotalSeconds, Mode=OneWay}"
-                Value="{Binding CurrentPositionSeconds, Mode=TwoWay}"
-                IsEnabled="{Binding CurrentTrack, Converter={StaticResource BoolToVis}}"
-                Background="Gray"
-                Thumb.DragStarted="TimelineSlider_DragStarted"
-                Thumb.DragCompleted="TimelineSlider_DragCompleted"/>
+                    Name="timelineSlider"
+                    Minimum="0" 
+                    Maximum="{Binding Duration.TotalSeconds, Mode=OneWay}"
+                    Value="{Binding CurrentPositionSeconds, Mode=TwoWay}"
+                    IsEnabled="{Binding CurrentTrack, Converter={StaticResource BoolToVis}}"
+                    Background="Gray"
+                    PreviewMouseDown="TimelineSlider_PreviewMouseDown"/>
 
             <!-- Duration -->
             <TextBlock Grid.Column="2" 

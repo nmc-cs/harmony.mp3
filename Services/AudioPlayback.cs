@@ -97,17 +97,20 @@ namespace Harmony.Services
 
         public void Seek(TimeSpan position)
         {
-            if (_mediaPlayer.NaturalDuration.HasTimeSpan)
+            if (_mediaPlayer.Source != null)
             {
-                // Ensure position is within valid range
-                TimeSpan duration = _mediaPlayer.NaturalDuration.TimeSpan;
-                if (position < TimeSpan.Zero)
-                    position = TimeSpan.Zero;
-                if (position > duration)
-                    position = duration;
+                if (_mediaPlayer.NaturalDuration.HasTimeSpan)
+                {
+                    // Ensure position is within valid range
+                    TimeSpan duration = _mediaPlayer.NaturalDuration.TimeSpan;
+                    if (position < TimeSpan.Zero)
+                        position = TimeSpan.Zero;
+                    if (position > duration)
+                        position = duration;
 
-                _mediaPlayer.Position = position;
-                PositionChanged?.Invoke(this, position);
+                    _mediaPlayer.Position = position;
+                    PositionChanged?.Invoke(this, position);
+                }
             }
         }
     }
