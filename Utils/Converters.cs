@@ -31,7 +31,7 @@ namespace Harmony.Utils
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value == null)
-                return null;
+                return null!; // Use null! to suppress the warning
 
             bool boolValue = (bool)value;
             string[] commandNames = ((string)parameter).Split('|');
@@ -43,11 +43,11 @@ namespace Harmony.Utils
                 var propertyInfo = viewModel.GetType().GetProperty(commandName);
                 if (propertyInfo != null)
                 {
-                    return propertyInfo.GetValue(viewModel) as ICommand;
+                    return propertyInfo.GetValue(viewModel) as ICommand ?? null!;
                 }
             }
 
-            return null;
+            return null!; // Use null! to suppress the warning
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

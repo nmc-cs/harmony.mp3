@@ -7,7 +7,7 @@
         xmlns:utils="clr-namespace:Harmony.Utils"
         xmlns:models="clr-namespace:Harmony.Models"
         mc:Ignorable="d"
-        Title="Harmony Music Player" Height="550" Width="900"
+        Title="Harmony Music Player" Height="650" Width="1000"
         Background="#121212">
 
     <Window.Resources>
@@ -15,58 +15,194 @@
         <utils:BoolToSymbolConverter x:Key="BoolToSymbolConverter"/>
         <utils:BoolToCommandConverter x:Key="BoolToCommandConverter"/>
         <utils:PlaybackStateToSymbolConverter x:Key="PlaybackStateToSymbolConverter"/>
+        <utils:RepeatModeToSymbolConverter x:Key="RepeatModeToSymbolConverter"/>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="100"/>
         </Grid.RowDefinitions>
 
+        <!-- Playlist management toolbar -->
+        <Grid Grid.Row="0" Background="#1E1E1E" Margin="10,10,10,5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <ComboBox Grid.Column="0" 
+                      Width="200" 
+                      ItemsSource="{Binding Playlists}" 
+                      SelectedItem="{Binding SelectedPlaylist, Mode=TwoWay}"
+                      DisplayMemberPath="Name"
+                      Margin="0,0,10,0"
+                      Background="#2E2E2E"
+                      Foreground="White"
+                      BorderBrush="#444444">
+            </ComboBox>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <Button Content="Create Playlist" Margin="5,0" Padding="10,5"
+                        Command="{Binding CreatePlaylistCommand}"
+                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
+                <Button Content="Rename" Margin="5,0" Padding="10,5"
+                        Command="{Binding RenamePlaylistCommand}"
+                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
+                <Button Content="Delete" Margin="5,0" Padding="10,5"
+                        Command="{Binding DeletePlaylistCommand}"
+                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
+                <Button Content="Import" Margin="5,0" Padding="10,5"
+                        Command="{Binding ImportPlaylistCommand}"
+                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
+                <Button Content="Export" Margin="5,0" Padding="10,5"
+                        Command="{Binding ExportPlaylistCommand}"
+                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
+            </StackPanel>
+        </Grid>
+
         <!-- Main content area with playlist -->
-        <Grid Grid.Row="0" Background="#1E1E1E" Margin="10">
+        <Grid Grid.Row="1" Background="#1E1E1E" Margin="10,5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <!-- Playlist -->
-            <ListBox Name="playlistListBox"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     SelectionMode="Single"
-                     ItemsSource="{Binding CurrentPlaylist.Files}"
-                     SelectedIndex="{Binding CurrentPlaylist.CurrentIndex, Mode=TwoWay}">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Title}" 
-                                       Foreground="White" 
-                                       FontSize="14" 
-                                       VerticalAlignment="Center"/>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-                <ListBox.InputBindings>
-                    <MouseBinding MouseAction="LeftDoubleClick" 
-                                 Command="{Binding PlaySelectedTrackCommand}" 
-                                 CommandParameter="{Binding ElementName=playlistListBox, Path=SelectedIndex}"/>
-                </ListBox.InputBindings>
-            </ListBox>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-            <!-- Reserved space for album art -->
-            <Border Grid.Column="1" Width="200" Background="#1A1A1A" Margin="10,0,0,0">
-                <Image Source="{Binding CurrentTrack.AlbumArt}" Stretch="Uniform"/>
-            </Border>
+                <ListBox Name="playlistListBox"
+                         Grid.Row="0"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         SelectionMode="Extended"
+                         ItemsSource="{Binding CurrentPlaylist.Files}"
+                         SelectedIndex="{Binding CurrentPlaylist.CurrentIndex, Mode=TwoWay}"
+                         SelectionChanged="PlaylistListBox_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Title}" 
+                                           Foreground="White" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" 
+                                           Text="{Binding Artist}" 
+                                           Foreground="#BBBBBB" 
+                                           FontSize="12" 
+                                           Margin="10,0" 
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" 
+                                           Text="{Binding Duration, StringFormat=mm\\:ss}" 
+                                           Foreground="#999999" 
+                                           FontSize="12" 
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                    <ListBox.InputBindings>
+                        <MouseBinding MouseAction="LeftDoubleClick" 
+                                     Command="{Binding PlaySelectedTrackCommand}" 
+                                     CommandParameter="{Binding ElementName=playlistListBox, Path=SelectedIndex}"/>
+                    </ListBox.InputBindings>
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Play" 
+                                      Command="{Binding PlaySelectedTrackCommand}" 
+                                      CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(ListBox.SelectedIndex)}"/>
+                            <Separator/>
+                            <MenuItem Header="Add to Playlist" Name="AddToPlaylistMenuItem">
+                                <MenuItem.ItemsSource>
+                                    <Binding Path="Playlists" />
+                                </MenuItem.ItemsSource>
+                                <MenuItem.ItemTemplate>
+                                    <DataTemplate>
+                                        <MenuItem Header="{Binding Name}" 
+                                                  Command="{Binding DataContext.AddToPlaylistCommand, 
+                                                            RelativeSource={RelativeSource FindAncestor, 
+                                                            AncestorType={x:Type ContextMenu}}}" 
+                                                  CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </MenuItem.ItemTemplate>
+                            </MenuItem>
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
+                </ListBox>
+
+                <!-- Track information panel -->
+                <Border Grid.Row="1" Background="#1A1A1A" Margin="0">
+                    <Grid Margin="10" Visibility="{Binding CurrentTrack, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Image Source="{Binding CurrentTrack.AlbumArt}" 
+                               Width="60" Height="60" 
+                               Stretch="Uniform" 
+                               Margin="0,0,10,0"/>
+
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding CurrentTrack.Title}" 
+                                       Foreground="White" 
+                                       FontSize="16" 
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding CurrentTrack.Artist}" 
+                                       Foreground="#DDDDDD" 
+                                       FontSize="14" 
+                                       Margin="0,2,0,0"/>
+                            <TextBlock Text="{Binding CurrentTrack.Album}" 
+                                       Foreground="#BBBBBB" 
+                                       FontSize="12" 
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Album art and playback modes panel -->
+            <Grid Grid.Column="1" Width="250" Background="#1A1A1A" Margin="10,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Album Art -->
+                <Border Grid.Row="1" Margin="10" Background="#111111">
+                    <Image Source="{Binding CurrentTrack.AlbumArt}" Stretch="Uniform"/>
+                </Border>
+
+                <!-- Playback modes -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                    <Button Content="{Binding IsShuffleEnabled, Converter={StaticResource BoolToSymbolConverter}, ConverterParameter=🔀|🔀}"
+                            Foreground="{Binding IsShuffleEnabled, Converter={StaticResource BoolToSymbolConverter}, ConverterParameter=#999999|White}"
+                            FontSize="20" Background="Transparent" BorderThickness="0" Margin="10,0"
+                            Command="{Binding ToggleShuffleCommand}"
+                            ToolTip="Toggle Shuffle Mode"/>
+
+                    <Button Content="{Binding RepeatMode, Converter={StaticResource RepeatModeToSymbolConverter}}"
+                            FontSize="20" Background="Transparent" BorderThickness="0" Margin="10,0"
+                            Command="{Binding CycleRepeatModeCommand}"
+                            ToolTip="Cycle Repeat Mode"/>
+                </StackPanel>
+            </Grid>
         </Grid>
 
         <!-- Timeline Slider -->
-        <Grid Grid.Row="1" Margin="10,0">
+        <Grid Grid.Row="2" Margin="10,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -98,7 +234,7 @@
         </Grid>
 
         <!-- Playback controls -->
-        <Grid Grid.Row="2" Background="#1E1E1E" Margin="10">
+        <Grid Grid.Row="3" Background="#1E1E1E" Margin="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -111,19 +247,25 @@
                        FontSize="16" 
                        FontWeight="SemiBold"
                        Margin="10"
-                       VerticalAlignment="Center"/>
+                       VerticalAlignment="Center"
+                       MaxWidth="300"
+                       TextTrimming="CharacterEllipsis"/>
 
             <!-- Playback controls -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Button Content="⏮" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
-                        Command="{Binding PreviousCommand}"/>
+                        Command="{Binding PreviousCommand}"
+                        ToolTip="Previous Track"/>
                 <Button Content="{Binding PlaybackState, Converter={StaticResource PlaybackStateToSymbolConverter}}" 
-                        FontSize="24" Background="Transparent" Foreground="White" Margin="5"
-                        Command="{Binding PlaybackControlCommand}"/>
+                        FontSize="32" Background="Transparent" Foreground="White" Margin="10,5"
+                        Command="{Binding PlaybackControlCommand}"
+                        ToolTip="Play/Pause"/>
                 <Button Content="⏭" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
-                        Command="{Binding NextCommand}"/>
-                <Button Content="📂" FontSize="20" Background="Transparent" Foreground="White" Margin="15,5,5,5"
-                        Command="{Binding LoadFilesCommand}"/>
+                        Command="{Binding NextCommand}"
+                        ToolTip="Next Track"/>
+                <Button Content="📂" FontSize="20" Background="Transparent" Foreground="White" Margin="25,5,5,5"
+                        Command="{Binding LoadFilesCommand}"
+                        ToolTip="Add Files"/>
             </StackPanel>
 
             <!-- Volume control -->
