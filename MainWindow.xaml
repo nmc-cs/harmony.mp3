@@ -16,6 +16,34 @@
         <utils:BoolToCommandConverter x:Key="BoolToCommandConverter"/>
         <utils:PlaybackStateToSymbolConverter x:Key="PlaybackStateToSymbolConverter"/>
         <utils:RepeatModeToSymbolConverter x:Key="RepeatModeToSymbolConverter"/>
+
+        <!-- Default Button style to ensure disabled buttons show properly -->
+        <Style x:Key="DefaultButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2E2E2E"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#444444"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#444444"/>
+                    <Setter Property="Foreground" Value="#AAAAAA"/>
+                    <Setter Property="Opacity" Value="0.7"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Style for playback control buttons -->
+        <Style x:Key="PlaybackButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="#666666"/>
+                    <Setter Property="Opacity" Value="0.7"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -41,26 +69,45 @@
                       DisplayMemberPath="Name"
                       Margin="0,0,10,0"
                       Background="#2E2E2E"
-                      Foreground="White"
+                      Foreground="Black"
                       BorderBrush="#444444">
+                <ComboBox.ItemContainerStyle>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="Black"/>
+                    </Style>
+                </ComboBox.ItemContainerStyle>
             </ComboBox>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal">
-                <Button Content="Create Playlist" Margin="5,0" Padding="10,5"
+                <Button Content="Create Playlist" Margin="5,0" 
                         Command="{Binding CreatePlaylistCommand}"
-                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
-                <Button Content="Rename" Margin="5,0" Padding="10,5"
+                        Style="{StaticResource DefaultButtonStyle}"/>
+
+                <!-- Rename button - only visible when not in Now Playing -->
+                <Button Content="Rename" Margin="5,0" 
                         Command="{Binding RenamePlaylistCommand}"
-                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
-                <Button Content="Delete" Margin="5,0" Padding="10,5"
+                        Style="{StaticResource DefaultButtonStyle}"
+                        Visibility="{Binding IsNotDefaultPlaylist, Converter={StaticResource BoolToVis}}"/>
+
+                <!-- Delete button renamed conditionally -->
+                <Button Margin="5,0" 
                         Command="{Binding DeletePlaylistCommand}"
-                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
-                <Button Content="Import" Margin="5,0" Padding="10,5"
+                        Style="{StaticResource DefaultButtonStyle}"
+                        Visibility="{Binding IsNotDefaultPlaylist, Converter={StaticResource BoolToVis}}">
+                    <Button.Content>
+                        <TextBlock Text="Delete Playlist"/>
+                    </Button.Content>
+                </Button>
+
+                <!-- Changed Import to Add Music -->
+                <Button Content="Add Music" Margin="5,0" 
                         Command="{Binding ImportPlaylistCommand}"
-                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
-                <Button Content="Export" Margin="5,0" Padding="10,5"
-                        Command="{Binding ExportPlaylistCommand}"
-                        Background="#2E2E2E" Foreground="White" BorderBrush="#444444"/>
+                        Style="{StaticResource DefaultButtonStyle}"/>
+
+                <!-- Added Remove Music button -->
+                <Button Content="Remove Music" Margin="5,0" 
+                        Command="{Binding RemoveSelectedTracksCommand}"
+                        Style="{StaticResource DefaultButtonStyle}"/>
             </StackPanel>
         </Grid>
 
@@ -189,13 +236,15 @@
                 <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
                     <Button Content="{Binding IsShuffleEnabled, Converter={StaticResource BoolToSymbolConverter}, ConverterParameter=🔀|🔀}"
                             Foreground="{Binding IsShuffleEnabled, Converter={StaticResource BoolToSymbolConverter}, ConverterParameter=#999999|White}"
-                            FontSize="20" Background="Transparent" BorderThickness="0" Margin="10,0"
+                            FontSize="20" Margin="10,0"
                             Command="{Binding ToggleShuffleCommand}"
+                            Style="{StaticResource PlaybackButtonStyle}"
                             ToolTip="Toggle Shuffle Mode"/>
 
                     <Button Content="{Binding RepeatMode, Converter={StaticResource RepeatModeToSymbolConverter}}"
-                            FontSize="20" Background="Transparent" BorderThickness="0" Margin="10,0"
+                            FontSize="20" Margin="10,0"
                             Command="{Binding CycleRepeatModeCommand}"
+                            Style="{StaticResource PlaybackButtonStyle}"
                             ToolTip="Cycle Repeat Mode"/>
                 </StackPanel>
             </Grid>
@@ -253,18 +302,22 @@
 
             <!-- Playback controls -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Button Content="⏮" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
+                <Button Content="⏮" FontSize="24" Margin="5"
                         Command="{Binding PreviousCommand}"
+                        Style="{StaticResource PlaybackButtonStyle}"
                         ToolTip="Previous Track"/>
                 <Button Content="{Binding PlaybackState, Converter={StaticResource PlaybackStateToSymbolConverter}}" 
-                        FontSize="32" Background="Transparent" Foreground="White" Margin="10,5"
+                        FontSize="32" Margin="10,5"
                         Command="{Binding PlaybackControlCommand}"
+                        Style="{StaticResource PlaybackButtonStyle}"
                         ToolTip="Play/Pause"/>
-                <Button Content="⏭" FontSize="24" Background="Transparent" Foreground="White" Margin="5"
+                <Button Content="⏭" FontSize="24" Margin="5"
                         Command="{Binding NextCommand}"
+                        Style="{StaticResource PlaybackButtonStyle}"
                         ToolTip="Next Track"/>
-                <Button Content="📂" FontSize="20" Background="Transparent" Foreground="White" Margin="25,5,5,5"
+                <Button Content="📂" FontSize="20" Margin="25,5,5,5"
                         Command="{Binding LoadFilesCommand}"
+                        Style="{StaticResource PlaybackButtonStyle}"
                         ToolTip="Add Files"/>
             </StackPanel>
 

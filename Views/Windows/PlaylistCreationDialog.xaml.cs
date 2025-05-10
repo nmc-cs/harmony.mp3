@@ -4,7 +4,21 @@ namespace Harmony.Views.Windows
 {
     public partial class PlaylistCreationDialog : Window
     {
-        public string PlaylistName { get; private set; } = string.Empty;
+        private string _playlistName = string.Empty;
+
+        public string PlaylistName
+        {
+            get => _playlistName;
+            set
+            {
+                _playlistName = value;
+                // Update textbox if set from outside
+                if (PlaylistNameTextBox != null)
+                {
+                    PlaylistNameTextBox.Text = value;
+                }
+            }
+        }
 
         public PlaylistCreationDialog()
         {

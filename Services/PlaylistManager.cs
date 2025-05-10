@@ -50,7 +50,9 @@ namespace Harmony.Services
             var openFileDialog = new OpenFileDialog
             {
                 Multiselect = true,
-                Filter = "Audio Files|*.mp3;*.wav;*.flac;*.m4a|All Files|*.*"
+                Filter = "Audio Files|*.mp3;*.wav;*.flac;*.m4a|All Files|*.*",
+                // Set initial directory to Downloads folder
+                InitialDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")
             };
 
             if (openFileDialog.ShowDialog() == true)

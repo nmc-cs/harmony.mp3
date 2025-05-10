@@ -167,10 +167,14 @@ namespace Harmony.ViewModels
                         _playlistManager.CurrentPlaylist = value;
                     }
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsNotDefaultPlaylist));
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
         }
+
+        // Added property to determine if current playlist is NOT the default "Now Playing" playlist
+        public bool IsNotDefaultPlaylist => SelectedPlaylist != null && SelectedPlaylist.Name != "Now Playing";
 
         public ObservableCollection<AudioFile> SelectedTracks
         {
@@ -227,7 +231,7 @@ namespace Harmony.ViewModels
         public ICommand RenamePlaylistCommand { get; private set; }
         public ICommand AddToPlaylistCommand { get; private set; }
         public ICommand ImportPlaylistCommand { get; private set; }
-        public ICommand ExportPlaylistCommand { get; private set; }
+        public ICommand RemoveSelectedTracksCommand { get; private set; }
         public ICommand ToggleShuffleCommand { get; private set; }
         public ICommand CycleRepeatModeCommand { get; private set; }
 
@@ -296,6 +300,7 @@ namespace Harmony.ViewModels
             {
                 // Refresh bindings when current playlist changes
                 OnPropertyChanged(nameof(CurrentPlaylist));
+                OnPropertyChanged(nameof(IsNotDefaultPlaylist));
                 OnPropertyChanged(nameof(IsShuffleEnabled));
                 OnPropertyChanged(nameof(RepeatMode));
             };
@@ -321,8 +326,8 @@ namespace Harmony.ViewModels
             DeletePlaylistCommand = new RelayCommand(_ => DeletePlaylist(), _ => CanDeletePlaylist());
             RenamePlaylistCommand = new RelayCommand(_ => RenamePlaylist(), _ => CanRenamePlaylist());
             AddToPlaylistCommand = new RelayCommand(playlist => AddToPlaylist((Playlist)playlist), _ => CanAddToPlaylist());
-            ImportPlaylistCommand = new RelayCommand(_ => ImportPlaylist());
-            ExportPlaylistCommand = new RelayCommand(_ => ExportPlaylist(), _ => CanExportPlaylist());
+            ImportPlaylistCommand = new RelayCommand(_ => LoadFiles());  // Renamed import to Add Music and reused LoadFiles function
+            RemoveSelectedTracksCommand = new RelayCommand(_ => RemoveSelectedTracks(), _ => CanRemoveSelectedTracks());
 
             // Playback mode commands
             ToggleShuffleCommand = new RelayCommand(_ => ToggleShuffle());
@@ -346,10 +351,10 @@ namespace Harmony.ViewModels
         private bool CanStop() => IsPlaying || PlaybackState == PlaybackState.Paused;
         private bool CanNext() => CurrentPlaylist?.HasNext ?? false;
         private bool CanPrevious() => CurrentPlaylist?.HasPrevious ?? false;
-        private bool CanDeletePlaylist() => SelectedPlaylist != null && Playlists.Count > 1;
-        private bool CanRenamePlaylist() => SelectedPlaylist != null;
+        private bool CanDeletePlaylist() => SelectedPlaylist != null && Playlists.Count > 1 && IsNotDefaultPlaylist;
+        private bool CanRenamePlaylist() => SelectedPlaylist != null && IsNotDefaultPlaylist;
         private bool CanAddToPlaylist() => SelectedTracks != null && SelectedTracks.Count > 0;
-        private bool CanExportPlaylist() => SelectedPlaylist != null && SelectedPlaylist.Files.Count > 0;
+        private bool CanRemoveSelectedTracks() => SelectedTracks != null && SelectedTracks.Count > 0;
 
         private void Play()
         {
@@ -385,6 +390,42 @@ namespace Harmony.ViewModels
                     Play();
                     break;
             }
+        }
+
+        private void RemoveSelectedTracks()
+        {
+            if (SelectedTracks == null || SelectedTracks.Count == 0 || CurrentPlaylist == null)
+                return;
+
+            var result = MessageBox.Show(
+                $"Are you sure you want to remove {SelectedTracks.Count} track(s) from the playlist?",
+                "Confirm Removal", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            // Create a list to hold the tracks we'll remove (to avoid collection modified exception)
+            var tracksToRemove = new List<AudioFile>(SelectedTracks);
+            bool removedCurrentTrack = false;
+
+            foreach (var track in tracksToRemove)
+            {
+                if (track == CurrentTrack)
+                {
+                    removedCurrentTrack = true;
+                }
+                CurrentPlaylist.Files.Remove(track);
+            }
+
+            // If we removed the currently playing track, stop playback
+            if (removedCurrentTrack && _audioService.IsPlaying)
+            {
+                _audioService.Stop();
+                CurrentTrack = null;
+            }
+
+            // Clear selection after removal
+            SelectedTracks.Clear();
         }
 
         private void Seek(double position)
@@ -450,7 +491,8 @@ namespace Harmony.ViewModels
             var dialog = new PlaylistCreationDialog
             {
                 Owner = Application.Current.MainWindow,
-                Title = "Rename Playlist"
+                Title = "Rename Playlist",
+                PlaylistName = SelectedPlaylist.Name
             };
 
             if (dialog.ShowDialog() == true)
@@ -468,35 +510,6 @@ namespace Harmony.ViewModels
             MessageBox.Show(
                 $"{SelectedTracks.Count} track(s) added to '{targetPlaylist.Name}'.",
                 "Tracks Added", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        private void ImportPlaylist()
-        {
-            var openFileDialog = new OpenFileDialog
-            {
-                Filter = "Playlist Files|*.m3u;*.m3u8|All Files|*.*"
-            };
-
-            if (openFileDialog.ShowDialog() == true)
-            {
-                _playlistManager.ImportPlaylist(openFileDialog.FileName);
-            }
-        }
-
-        private void ExportPlaylist()
-        {
-            if (SelectedPlaylist == null) return;
-
-            var saveFileDialog = new SaveFileDialog
-            {
-                FileName = $"{SelectedPlaylist.Name}.m3u",
-                Filter = "M3U Playlist|*.m3u|All Files|*.*"
-            };
-
-            if (saveFileDialog.ShowDialog() == true)
-            {
-                _playlistManager.ExportPlaylist(SelectedPlaylist, saveFileDialog.FileName);
-            }
         }
 
         private void ToggleShuffle()

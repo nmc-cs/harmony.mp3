@@ -24,6 +24,24 @@ namespace Harmony.Utils
     }
 
     /// <summary>
+    /// Converts boolean to one of two string values
+    /// </summary>
+    public class BoolToStringConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            bool boolValue = (bool)value;
+            string[] options = ((string)parameter).Split('|');
+            return boolValue ? options[0] : options[1];
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
     /// Selects between two commands based on a boolean value
     /// </summary>
     public class BoolToCommandConverter : IValueConverter
