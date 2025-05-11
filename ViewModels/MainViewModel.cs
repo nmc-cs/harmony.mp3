@@ -22,13 +22,16 @@ namespace Harmony.ViewModels
         private bool _isPlaying;
         private double _volume = 1.0;
         private TimeSpan _currentPosition;
-        private double _currentPositionSeconds; // Property for slider binding
+        private double _currentPositionSeconds;
         private TimeSpan _duration;
         private AudioFile? _currentTrack;
-        private string _currentTrackText = "No track selected"; // Initialize with default value
+        private string _currentTrackText = "No track selected";
         private PlaybackState _playbackState = PlaybackState.Stopped;
         private Playlist _selectedPlaylist;
         private ObservableCollection<AudioFile> _selectedTracks;
+        private readonly LyricsService _lyricsService;
+        private string _currentLyrics = string.Empty;
+        private readonly Services.WaveformAnalyzer _waveformAnalyzer;
 
         public bool IsPlaying
         {
@@ -38,13 +41,9 @@ namespace Harmony.ViewModels
                 if (_isPlaying != value)
                 {
                     _isPlaying = value;
-
-                    // Update playback state based on IsPlaying
                     PlaybackState = value ? PlaybackState.Playing :
                         (_audioService.Position.TotalSeconds > 0 ? PlaybackState.Paused : PlaybackState.Stopped);
-
                     OnPropertyChanged();
-                    // Update commands when playback state changes
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -86,14 +85,13 @@ namespace Harmony.ViewModels
                 if (_currentPosition != value)
                 {
                     _currentPosition = value;
-                    _currentPositionSeconds = value.TotalSeconds; // Update seconds when TimeSpan changes
+                    _currentPositionSeconds = value.TotalSeconds;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CurrentPositionSeconds));
                 }
             }
         }
 
-        // Property for binding to the slider
         public double CurrentPositionSeconds
         {
             get => _currentPositionSeconds;
@@ -103,9 +101,6 @@ namespace Harmony.ViewModels
                 {
                     _currentPositionSeconds = value;
                     OnPropertyChanged();
-
-                    // Don't update CurrentPosition here to avoid circular updates
-                    // The seek operation will be handled by the SeekCommand
                 }
             }
         }
@@ -132,7 +127,13 @@ namespace Harmony.ViewModels
                 {
                     _currentTrack = value;
                     UpdateCurrentTrackText();
+                    UpdateLyrics();
+                    if (_currentTrack != null && !_currentTrack.IsWaveformAnalyzed)
+                    {
+                        _ = _currentTrack.AnalyzeWaveformAsync(_waveformAnalyzer);
+                    }
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(CurrentPositionSeconds));
                 }
             }
         }
@@ -173,8 +174,9 @@ namespace Harmony.ViewModels
             }
         }
 
-        // Added property to determine if current playlist is NOT the default "Now Playing" playlist
         public bool IsNotDefaultPlaylist => SelectedPlaylist != null && SelectedPlaylist.Name != "Now Playing";
+
+        public bool HasLyrics => !string.IsNullOrEmpty(_currentLyrics) && CurrentTrack != null;
 
         public ObservableCollection<AudioFile> SelectedTracks
         {
@@ -216,7 +218,20 @@ namespace Harmony.ViewModels
             }
         }
 
-        // Commands
+        public string CurrentLyrics
+        {
+            get => _currentLyrics;
+            set
+            {
+                if (_currentLyrics != value)
+                {
+                    _currentLyrics = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasLyrics));
+                }
+            }
+        }
+
         public ICommand PlayCommand { get; private set; }
         public ICommand PauseCommand { get; private set; }
         public ICommand StopCommand { get; private set; }
@@ -235,16 +250,17 @@ namespace Harmony.ViewModels
         public ICommand ToggleShuffleCommand { get; private set; }
         public ICommand CycleRepeatModeCommand { get; private set; }
 
+        public AudioPlaybackService AudioService => _audioService;
+
         public MainViewModel()
         {
             _audioService = new AudioPlaybackService();
             _playlistManager = new PlaylistManager(_audioService);
             _selectedTracks = new ObservableCollection<AudioFile>();
-
-            // Initialize with the default playlist
+            _waveformAnalyzer = new Services.WaveformAnalyzer();
             _selectedPlaylist = _playlistManager.CurrentPlaylist;
+            _lyricsService = new LyricsService();
 
-            // Subscribe to events
             _audioService.PositionChanged += (s, position) =>
             {
                 CurrentPosition = position;
@@ -274,13 +290,9 @@ namespace Harmony.ViewModels
 
             _audioService.MediaEnded += (s, e) =>
             {
-                if (RepeatMode == RepeatMode.One)
+                if (RepeatMode == RepeatMode.One && CurrentTrack != null)
                 {
-                    // If repeat one is enabled, restart the current track
-                    if (CurrentTrack != null)
-                    {
-                        _audioService.Play(CurrentTrack);
-                    }
+                    _audioService.Play(CurrentTrack);
                 }
                 else
                 {
@@ -298,7 +310,6 @@ namespace Harmony.ViewModels
 
             _playlistManager.CurrentPlaylistChanged += (s, playlist) =>
             {
-                // Refresh bindings when current playlist changes
                 OnPropertyChanged(nameof(CurrentPlaylist));
                 OnPropertyChanged(nameof(IsNotDefaultPlaylist));
                 OnPropertyChanged(nameof(IsShuffleEnabled));
@@ -310,7 +321,6 @@ namespace Harmony.ViewModels
                 OnPropertyChanged(nameof(Playlists));
             };
 
-            // Initialize commands
             PlayCommand = new RelayCommand(_ => Play(), _ => CanPlay());
             PauseCommand = new RelayCommand(_ => Pause(), _ => CanPause());
             StopCommand = new RelayCommand(_ => Stop(), _ => CanStop());
@@ -321,23 +331,18 @@ namespace Harmony.ViewModels
             PlaySelectedTrackCommand = new RelayCommand(index => PlaySelectedTrack((int)index), _ => CurrentPlaylist?.Files.Count > 0);
             PlaybackControlCommand = new RelayCommand(_ => TogglePlayback());
 
-            // Playlist management commands
             CreatePlaylistCommand = new RelayCommand(_ => CreatePlaylist());
             DeletePlaylistCommand = new RelayCommand(_ => DeletePlaylist(), _ => CanDeletePlaylist());
             RenamePlaylistCommand = new RelayCommand(_ => RenamePlaylist(), _ => CanRenamePlaylist());
             AddToPlaylistCommand = new RelayCommand(playlist => AddToPlaylist((Playlist)playlist), _ => CanAddToPlaylist());
-            ImportPlaylistCommand = new RelayCommand(_ => LoadFiles());  // Renamed import to Add Music and reused LoadFiles function
+            ImportPlaylistCommand = new RelayCommand(_ => LoadFiles());
             RemoveSelectedTracksCommand = new RelayCommand(_ => RemoveSelectedTracks(), _ => CanRemoveSelectedTracks());
-
-            // Playback mode commands
             ToggleShuffleCommand = new RelayCommand(_ => ToggleShuffle());
             CycleRepeatModeCommand = new RelayCommand(_ => CycleRepeatMode());
 
-            // Set default values
             CurrentTrackText = "No track selected";
-            Volume = 0.7; // 70% volume by default
+            Volume = 0.7;
 
-            // Create a timer to periodically update command states
             _commandUpdateTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(1)
@@ -356,75 +361,48 @@ namespace Harmony.ViewModels
         private bool CanAddToPlaylist() => SelectedTracks != null && SelectedTracks.Count > 0;
         private bool CanRemoveSelectedTracks() => SelectedTracks != null && SelectedTracks.Count > 0;
 
-        private void Play()
-        {
-            if (_audioService.CurrentFile == null && CurrentPlaylist?.Files.Count > 0)
-            {
-                // If nothing is loaded yet but we have files, play the first one
-                PlaySelectedTrack(0);
-            }
-            else
-            {
-                _audioService.Play();
-            }
-        }
-
+        private void Play() { if (_audioService.CurrentFile == null && CurrentPlaylist?.Files.Count > 0) PlaySelectedTrack(0); else _audioService.Play(); }
         private void Pause() => _audioService.Pause();
         private void Stop() => _audioService.Stop();
         private void Next() => _playlistManager.PlayNext();
         private void Previous() => _playlistManager.PlayPrevious();
         private void LoadFiles() => _playlistManager.LoadFiles();
 
-        // Method to handle the combined button functionality
         private void TogglePlayback()
         {
             switch (PlaybackState)
             {
-                case PlaybackState.Playing:
-                    Pause();
-                    break;
+                case PlaybackState.Playing: Pause(); break;
                 case PlaybackState.Paused:
-                    Play();
-                    break;
-                case PlaybackState.Stopped:
-                    Play();
-                    break;
+                case PlaybackState.Stopped: Play(); break;
             }
         }
 
         private void RemoveSelectedTracks()
         {
-            if (SelectedTracks == null || SelectedTracks.Count == 0 || CurrentPlaylist == null)
-                return;
+            if (SelectedTracks == null || SelectedTracks.Count == 0 || CurrentPlaylist == null) return;
 
             var result = MessageBox.Show(
                 $"Are you sure you want to remove {SelectedTracks.Count} track(s) from the playlist?",
                 "Confirm Removal", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
-            if (result != MessageBoxResult.Yes)
-                return;
+            if (result != MessageBoxResult.Yes) return;
 
-            // Create a list to hold the tracks we'll remove (to avoid collection modified exception)
             var tracksToRemove = new List<AudioFile>(SelectedTracks);
             bool removedCurrentTrack = false;
 
             foreach (var track in tracksToRemove)
             {
-                if (track == CurrentTrack)
-                {
-                    removedCurrentTrack = true;
-                }
+                if (track == CurrentTrack) removedCurrentTrack = true;
                 CurrentPlaylist.Files.Remove(track);
             }
 
-            // If we removed the currently playing track, stop playback
             if (removedCurrentTrack && _audioService.IsPlaying)
             {
                 _audioService.Stop();
                 CurrentTrack = null;
             }
 
-            // Clear selection after removal
             SelectedTracks.Clear();
         }
 
@@ -432,69 +410,88 @@ namespace Harmony.ViewModels
         {
             if (Duration.TotalSeconds > 0)
             {
-                // Make sure we're seeking to a valid position
-                if (position < 0)
-                    position = 0;
-                if (position > Duration.TotalSeconds)
-                    position = Duration.TotalSeconds;
-
+                position = Math.Clamp(position, 0, Duration.TotalSeconds);
                 var seekPosition = TimeSpan.FromSeconds(position);
                 _audioService.Seek(seekPosition);
-
-                // Update our position properties to reflect the new position immediately
                 CurrentPosition = seekPosition;
-
-                // If we're stopped or paused, start playback
                 if (PlaybackState == PlaybackState.Stopped || PlaybackState == PlaybackState.Paused)
-                {
                     Play();
-                }
             }
         }
 
-        private void PlaySelectedTrack(int index) => _playlistManager.PlayTrack(index);
+        // UPDATED METHOD (as per your request)
+        private async void PlaySelectedTrack(int index)
+        {
+            if (index >= 0 && index < CurrentPlaylist.Files.Count)
+            {
+                CurrentPlaylist.CurrentIndex = index;
+                var track = CurrentPlaylist.Files[index];
+
+                if (!track.IsWaveformAnalyzed)
+                {
+                    try
+                    {
+                        await track.AnalyzeWaveformAsync(_waveformAnalyzer);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error analyzing waveform: {ex.Message}");
+                    }
+                }
+
+                _audioService.Play(track);
+                CurrentTrack = track;
+                CurrentTrackChanged?.Invoke(this, track);
+            }
+        }
+
+        private void UpdateLyrics()
+        {
+            if (CurrentTrack != null)
+            {
+                string lyrics = _lyricsService.GetLyrics(CurrentTrack);
+                CurrentLyrics = lyrics;
+                if (CurrentTrack.Lyrics != lyrics)
+                {
+                    CurrentTrack.Lyrics = lyrics;
+                    OnPropertyChanged(nameof(CurrentTrack));
+                }
+            }
+            else
+            {
+                CurrentLyrics = string.Empty;
+            }
+        }
 
         private void CreatePlaylist()
         {
-            var dialog = new PlaylistCreationDialog
-            {
-                Owner = Application.Current.MainWindow
-            };
-
+            var dialog = new PlaylistCreationDialog { Owner = Application.Current.MainWindow };
             if (dialog.ShowDialog() == true)
             {
                 _playlistManager.CreatePlaylist(dialog.PlaylistName);
-
-                // Select the newly created playlist
-                SelectedPlaylist = _playlistManager.Playlists[_playlistManager.Playlists.Count - 1];
+                SelectedPlaylist = _playlistManager.Playlists[^1];
             }
         }
 
         private void DeletePlaylist()
         {
             if (SelectedPlaylist == null) return;
-
             var result = MessageBox.Show(
                 $"Are you sure you want to delete the playlist '{SelectedPlaylist.Name}'?",
                 "Confirm Deletion", MessageBoxButton.YesNo, MessageBoxImage.Question);
-
             if (result == MessageBoxResult.Yes)
-            {
                 _playlistManager.DeletePlaylist(SelectedPlaylist);
-            }
         }
 
         private void RenamePlaylist()
         {
             if (SelectedPlaylist == null) return;
-
             var dialog = new PlaylistCreationDialog
             {
                 Owner = Application.Current.MainWindow,
                 Title = "Rename Playlist",
                 PlaylistName = SelectedPlaylist.Name
             };
-
             if (dialog.ShowDialog() == true)
             {
                 _playlistManager.RenamePlaylist(SelectedPlaylist, dialog.PlaylistName);
@@ -504,11 +501,8 @@ namespace Harmony.ViewModels
         private void AddToPlaylist(Playlist targetPlaylist)
         {
             if (targetPlaylist == null || SelectedTracks == null || SelectedTracks.Count == 0) return;
-
             _playlistManager.AddSelectedTracksToPlaylist(targetPlaylist, new List<AudioFile>(SelectedTracks));
-
-            MessageBox.Show(
-                $"{SelectedTracks.Count} track(s) added to '{targetPlaylist.Name}'.",
+            MessageBox.Show($"{SelectedTracks.Count} track(s) added to '{targetPlaylist.Name}'.",
                 "Tracks Added", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -534,23 +528,13 @@ namespace Harmony.ViewModels
         {
             if (CurrentTrack != null)
             {
-                // Format display text depending on available metadata
                 string artist = string.IsNullOrEmpty(CurrentTrack.Artist) || CurrentTrack.Artist == "Unknown Artist"
-                    ? ""
-                    : CurrentTrack.Artist;
-
+                    ? "" : CurrentTrack.Artist;
                 string album = string.IsNullOrEmpty(CurrentTrack.Album) || CurrentTrack.Album == "Unknown Album"
-                    ? ""
-                    : $" - {CurrentTrack.Album}";
-
-                if (!string.IsNullOrEmpty(artist))
-                {
-                    CurrentTrackText = $"{CurrentTrack.Title} - {artist}{album}";
-                }
-                else
-                {
-                    CurrentTrackText = CurrentTrack.Title;
-                }
+                    ? "" : $" - {CurrentTrack.Album}";
+                CurrentTrackText = !string.IsNullOrEmpty(artist)
+                    ? $"{CurrentTrack.Title} - {artist}{album}"
+                    : CurrentTrack.Title;
             }
             else
             {
@@ -558,15 +542,15 @@ namespace Harmony.ViewModels
             }
         }
 
-        // INotifyPropertyChanged implementation
         public event PropertyChangedEventHandler? PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+
+        public event EventHandler<AudioFile>? CurrentTrackChanged;
     }
 
-    // Simple implementation of ICommand
     public class RelayCommand : ICommand
     {
         private readonly Action<object> _execute;

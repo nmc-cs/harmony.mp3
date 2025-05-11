@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:Harmony"
         xmlns:utils="clr-namespace:Harmony.Utils"
         xmlns:models="clr-namespace:Harmony.Models"
+        xmlns:controls="clr-namespace:Harmony.Controls"
         mc:Ignorable="d"
         Title="Harmony Music Player" Height="650" Width="1000"
         Background="#121212">
@@ -219,17 +220,55 @@
                 </Border>
             </Grid>
 
-            <!-- Album art and playback modes panel -->
+            <!-- Lyrics and waveform visualizer panel -->
             <Grid Grid.Column="1" Width="250" Background="#1A1A1A" Margin="10,0,0,0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="100"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Album Art -->
-                <Border Grid.Row="1" Margin="10" Background="#111111">
-                    <Image Source="{Binding CurrentTrack.AlbumArt}" Stretch="Uniform"/>
+                <!-- Lyrics Display -->
+                <Border Grid.Row="0" Background="#111111" Margin="10,10,10,5">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock Foreground="White" 
+                                  FontSize="16" 
+                                  Padding="10"
+                                  TextWrapping="Wrap"
+                                  TextAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Select a track to view lyrics"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentTrack}" Value="{x:Null}">
+                                            <Setter Property="Text" Value="Select a track to view lyrics"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding CurrentLyrics}" Value="">
+                                            <Setter Property="Text" Value="No lyrics available for this track."/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding CurrentLyrics}">
+                                            <DataTrigger.Value>
+                                                <x:Null/>
+                                            </DataTrigger.Value>
+                                            <Setter Property="Text" Value="No lyrics available for this track."/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasLyrics}" Value="True">
+                                            <Setter Property="Text" Value="{Binding CurrentLyrics}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- Waveform Visualizer -->
+                <Border Grid.Row="1" Background="#111111" Margin="10,5,10,5">
+                    <controls:WaveformVisualizer 
+                        WaveformData="{Binding CurrentTrack.WaveformData}"
+                        CurrentPositionSeconds="{Binding CurrentPositionSeconds, Mode=TwoWay}"
+                        DurationSeconds="{Binding Duration.TotalSeconds}"
+                        PlaybackState="{Binding PlaybackState}"/>
                 </Border>
 
                 <!-- Playback modes -->

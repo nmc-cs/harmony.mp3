@@ -1,21 +1,21 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UseWPF>true</UseWPF>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Folder Include="Assets\" />
-    <Folder Include="Controls\" />
-    <Folder Include="Views\UserControls\" />
-  </ItemGroup>
+	<ItemGroup>
+		<Folder Include="Assets\" />
+		<Folder Include="Views\UserControls\" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="TagLibSharp" Version="2.3.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="NAudio" Version="2.2.1" />
+		<PackageReference Include="TagLibSharp" Version="2.3.0" />
+	</ItemGroup>
 
 </Project>
