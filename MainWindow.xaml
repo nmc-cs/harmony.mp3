@@ -220,11 +220,12 @@
                 </Border>
             </Grid>
 
-            <!-- Lyrics and waveform visualizer panel -->
+            <!-- Lyrics and visualizer panel -->
             <Grid Grid.Column="1" Width="250" Background="#1A1A1A" Margin="10,0,0,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="100"/>
+                    <RowDefinition Height="160"/>
+                    <!-- Increased size for visualizer -->
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
@@ -262,17 +263,18 @@
                     </ScrollViewer>
                 </Border>
 
-                <!-- Waveform Visualizer -->
-                <Border Grid.Row="1" Background="#111111" Margin="10,5,10,5">
-                    <controls:WaveformVisualizer 
-                        WaveformData="{Binding CurrentTrack.WaveformData}"
-                        CurrentPositionSeconds="{Binding CurrentPositionSeconds, Mode=TwoWay}"
-                        DurationSeconds="{Binding Duration.TotalSeconds}"
-                        PlaybackState="{Binding PlaybackState}"/>
+                <!-- Audio Visualizer (Equalizer) -->
+                <Border Grid.Row="1" Background="#111111" Margin="10,5,10,5" CornerRadius="4">
+                    <controls:AudioVisualizer 
+                        x:Name="audioVisualizer"
+                        PlaybackState="{Binding PlaybackState}"
+                        VisualizationColor="#8A2BE2" 
+                        Margin="5"
+                        Height="150"/>
                 </Border>
 
                 <!-- Playback modes -->
-                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5,0,10">
                     <Button Content="{Binding IsShuffleEnabled, Converter={StaticResource BoolToSymbolConverter}, ConverterParameter=🔀|🔀}"
                             Foreground="{Binding IsShuffleEnabled, Converter={StaticResource BoolToSymbolConverter}, ConverterParameter=#999999|White}"
                             FontSize="20" Margin="10,0"

@@ -31,7 +31,6 @@ namespace Harmony.ViewModels
         private ObservableCollection<AudioFile> _selectedTracks;
         private readonly LyricsService _lyricsService;
         private string _currentLyrics = string.Empty;
-        private readonly Services.WaveformAnalyzer _waveformAnalyzer;
 
         public bool IsPlaying
         {
@@ -128,10 +127,6 @@ namespace Harmony.ViewModels
                     _currentTrack = value;
                     UpdateCurrentTrackText();
                     UpdateLyrics();
-                    if (_currentTrack != null && !_currentTrack.IsWaveformAnalyzed)
-                    {
-                        _ = _currentTrack.AnalyzeWaveformAsync(_waveformAnalyzer);
-                    }
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CurrentPositionSeconds));
                 }
@@ -257,7 +252,6 @@ namespace Harmony.ViewModels
             _audioService = new AudioPlaybackService();
             _playlistManager = new PlaylistManager(_audioService);
             _selectedTracks = new ObservableCollection<AudioFile>();
-            _waveformAnalyzer = new Services.WaveformAnalyzer();
             _selectedPlaylist = _playlistManager.CurrentPlaylist;
             _lyricsService = new LyricsService();
 
@@ -268,6 +262,11 @@ namespace Harmony.ViewModels
                 {
                     Duration = _audioService.Duration;
                 }
+            };
+
+            _audioService.PlaybackStateChanged += (s, state) =>
+            {
+                PlaybackState = state;
             };
 
             _audioService.PlaybackStarted += (s, e) =>
@@ -419,26 +418,12 @@ namespace Harmony.ViewModels
             }
         }
 
-        // UPDATED METHOD (as per your request)
-        private async void PlaySelectedTrack(int index)
+        private void PlaySelectedTrack(int index)
         {
             if (index >= 0 && index < CurrentPlaylist.Files.Count)
             {
                 CurrentPlaylist.CurrentIndex = index;
                 var track = CurrentPlaylist.Files[index];
-
-                if (!track.IsWaveformAnalyzed)
-                {
-                    try
-                    {
-                        await track.AnalyzeWaveformAsync(_waveformAnalyzer);
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error analyzing waveform: {ex.Message}");
-                    }
-                }
-
                 _audioService.Play(track);
                 CurrentTrack = track;
                 CurrentTrackChanged?.Invoke(this, track);
