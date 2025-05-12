@@ -124,7 +124,26 @@ namespace Harmony.Controls
                     // Re-activate capture if we're still supposed to be visualizing
                     if (_isActivated && !_isDisposed)
                     {
-                        try { _audioCapture.StartRecording(); }
+                        try
+                        {
+                            // Add a small delay before restarting to avoid conflicts
+                            System.Threading.Timer restartTimer = null;
+                            restartTimer = new System.Threading.Timer(_ =>
+                            {
+                                if (_isActivated && !_isDisposed && _audioCapture != null && !_audioCapture.CaptureState.HasFlag(CaptureState.Capturing))
+                                {
+                                    try
+                                    {
+                                        _audioCapture.StartRecording();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"Failed to restart capture: {ex.Message}");
+                                    }
+                                }
+                                restartTimer?.Dispose();
+                            }, null, 100, System.Threading.Timeout.Infinite);
+                        }
                         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Failed to restart capture: {ex.Message}"); }
                     }
                 };
@@ -199,22 +218,50 @@ namespace Harmony.Controls
             // Copy and process the latest audio data for FFT
             lock (_lockObject)
             {
-                // Shift the buffer to make room for new data
-                Array.Copy(_audioData, samplesRecorded, _audioData, 0, _audioData.Length - samplesRecorded);
+                // Ensure we don't try to copy more samples than our buffer can hold
+                int samplesToCopy = Math.Min(samplesRecorded, _audioData.Length);
+                int samplesToShift = Math.Min(samplesToCopy, _audioData.Length);
+
+                // Shift the buffer to make room for new data only if necessary
+                if (samplesToShift > 0)
+                {
+                    int elementsToMove = Math.Max(0, _audioData.Length - samplesToShift);
+                    if (elementsToMove > 0)
+                    {
+                        Array.Copy(_audioData, samplesToShift, _audioData, 0, elementsToMove);
+                    }
+                }
 
                 // Convert the incoming audio bytes to float values and apply the window function
-                for (int i = 0; i < samplesRecorded && i < _audioData.Length; i++)
+                // Start from the most recent samples if we have more data than we can hold
+                int sourceStartIndex = Math.Max(0, samplesRecorded - samplesToCopy);
+
+                for (int i = 0; i < samplesToCopy; i++)
                 {
-                    if (bytesPerSample == 2) // 16-bit audio
+                    int sourceIndex = (sourceStartIndex + i) * bytesPerSample;
+                    int destIndex = _audioData.Length - samplesToCopy + i;
+
+                    if (destIndex >= 0 && destIndex < _audioData.Length &&
+                        sourceIndex + 1 < e.Buffer.Length)
                     {
-                        // Convert the 16-bit sample to a float and scale to [-1.0, 1.0]
-                        short sample = (short)(e.Buffer[i * 2] | (e.Buffer[i * 2 + 1] << 8));
-                        _audioData[_audioData.Length - samplesRecorded + i] = sample / 32768f * _windowFunction[i % _windowFunction.Length];
-                    }
-                    else // Handle other bit depths if needed
-                    {
-                        // Default fallback
-                        _audioData[_audioData.Length - samplesRecorded + i] = 0;
+                        if (bytesPerSample == 2) // 16-bit audio
+                        {
+                            // Convert the 16-bit sample to a float and scale to [-1.0, 1.0]
+                            short sample = (short)(e.Buffer[sourceIndex] | (e.Buffer[sourceIndex + 1] << 8));
+                            int windowIndex = i < _windowFunction.Length ? i : i % _windowFunction.Length;
+                            _audioData[destIndex] = sample / 32768f * _windowFunction[windowIndex];
+                        }
+                        else if (bytesPerSample == 4) // 32-bit float audio
+                        {
+                            float sample = BitConverter.ToSingle(e.Buffer, sourceIndex);
+                            int windowIndex = i < _windowFunction.Length ? i : i % _windowFunction.Length;
+                            _audioData[destIndex] = sample * _windowFunction[windowIndex];
+                        }
+                        else
+                        {
+                            // Fallback for other bit depths
+                            _audioData[destIndex] = 0;
+                        }
                     }
                 }
 
@@ -494,6 +541,14 @@ namespace Harmony.Controls
 
             try
             {
+                // Clear any stale data when starting
+                lock (_lockObject)
+                {
+                    Array.Clear(_audioData, 0, _audioData.Length);
+                    Array.Clear(_fftResults, 0, _fftResults.Length);
+                    Array.Clear(_prevResults, 0, _prevResults.Length);
+                }
+
                 if (_audioCapture != null && !_audioCapture.CaptureState.HasFlag(CaptureState.Capturing))
                 {
                     _audioCapture.StartRecording();
@@ -527,6 +582,14 @@ namespace Harmony.Controls
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error stopping visualizer: {ex.Message}");
+            }
+
+            // Clear audio data when stopping to avoid stale data on next start
+            lock (_lockObject)
+            {
+                Array.Clear(_audioData, 0, _audioData.Length);
+                Array.Clear(_fftResults, 0, _fftResults.Length);
+                Array.Clear(_prevResults, 0, _prevResults.Length);
             }
 
             ResetBars();
