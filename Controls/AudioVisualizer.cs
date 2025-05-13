@@ -26,9 +26,9 @@ namespace Harmony.Controls
         private const int FFT_SIZE = 8192; // Higher value for better frequency resolution
         private const int SAMPLE_RATE = 44100;
         private const float SMOOTHING_FACTOR = 0.3f; // Lower for more responsive, higher for smoother
-        private const float BASS_BOOST = 2.5f; // Emphasize bass frequencies
-        private const float MID_BOOST = 1.5f; // Emphasize mid frequencies
-        private const float SCALE_FACTOR = 4.0f; // Amplify overall visualization
+        private const float BASS_BOOST = 1.8f; // Emphasize bass frequencies (reduced from 2.5f)
+        private const float MID_BOOST = 1.2f; // Emphasize mid frequencies (reduced from 1.5f)
+        private const float SCALE_FACTOR = 2.5f; // Amplify overall visualization (reduced from 4.0f)
 
         // State and resources
         private readonly List<Rectangle> _bars = new();
@@ -285,12 +285,12 @@ namespace Harmony.Controls
                 {
                     // Frequencies typically decrease as we go higher
                     // Bass frequencies (low indexes) are usually higher
-                    float intensity = (float)(_random.NextDouble() * 0.7 + 0.3) * (1.0f - (i / (float)randomData.Length) * 0.6f);
+                    float intensity = (float)(_random.NextDouble() * 0.5 + 0.2) * (1.0f - (i / (float)randomData.Length) * 0.6f);
 
                     // Add some "beats" that are synchronized
-                    if (i < 5 && _random.NextDouble() > 0.7)
+                    if (i < 5 && _random.NextDouble() > 0.8)
                     {
-                        intensity = (float)(_random.NextDouble() * 0.5 + 0.5);
+                        intensity = (float)(_random.NextDouble() * 0.4 + 0.3);
                     }
 
                     randomData[i] = intensity;
@@ -349,6 +349,9 @@ namespace Harmony.Controls
 
                 // Apply overall scaling and frequency-specific scaling
                 magnitude *= SCALE_FACTOR * frequencyFactor;
+
+                // Apply a curve to prevent hitting max too often
+                magnitude = (float)Math.Pow(magnitude, 0.8);
 
                 // Clamp the value to a reasonable range
                 magnitude = Math.Min(1.0f, magnitude);

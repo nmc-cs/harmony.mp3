@@ -31,6 +31,7 @@ namespace Harmony.ViewModels
         private ObservableCollection<AudioFile> _selectedTracks;
         private readonly LyricsService _lyricsService;
         private string _currentLyrics = string.Empty;
+        private string _displayLyrics = "Select a track to view lyrics";
 
         public bool IsPlaying
         {
@@ -223,6 +224,20 @@ namespace Harmony.ViewModels
                     _currentLyrics = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasLyrics));
+                    UpdateDisplayLyrics();
+                }
+            }
+        }
+
+        public string DisplayLyrics
+        {
+            get => _displayLyrics;
+            set
+            {
+                if (_displayLyrics != value)
+                {
+                    _displayLyrics = value;
+                    OnPropertyChanged();
                 }
             }
         }
@@ -430,21 +445,54 @@ namespace Harmony.ViewModels
             }
         }
 
-        private void UpdateLyrics()
+        private async void UpdateLyrics()
         {
             if (CurrentTrack != null)
             {
-                string lyrics = _lyricsService.GetLyrics(CurrentTrack);
-                CurrentLyrics = lyrics;
-                if (CurrentTrack.Lyrics != lyrics)
+                // Show loading state
+                DisplayLyrics = "Loading lyrics...";
+
+                try
                 {
-                    CurrentTrack.Lyrics = lyrics;
-                    OnPropertyChanged(nameof(CurrentTrack));
+                    // Get lyrics asynchronously
+                    string lyrics = await _lyricsService.GetLyricsAsync(CurrentTrack);
+
+                    CurrentLyrics = lyrics;
+
+                    // Update the track's lyrics property if it changed
+                    if (CurrentTrack.Lyrics != lyrics)
+                    {
+                        CurrentTrack.Lyrics = lyrics;
+                        OnPropertyChanged(nameof(CurrentTrack));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error updating lyrics: {ex.Message}");
+                    CurrentLyrics = string.Empty;
                 }
             }
             else
             {
                 CurrentLyrics = string.Empty;
+            }
+
+            UpdateDisplayLyrics();
+        }
+
+        private void UpdateDisplayLyrics()
+        {
+            if (CurrentTrack == null)
+            {
+                DisplayLyrics = "Select a track to view lyrics";
+            }
+            else if (string.IsNullOrEmpty(CurrentLyrics))
+            {
+                DisplayLyrics = "No lyrics available for this track";
+            }
+            else
+            {
+                DisplayLyrics = CurrentLyrics;
             }
         }
 
