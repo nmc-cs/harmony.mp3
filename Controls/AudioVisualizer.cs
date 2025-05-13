@@ -26,9 +26,9 @@ namespace Harmony.Controls
         private const int FFT_SIZE = 8192; // Higher value for better frequency resolution
         private const int SAMPLE_RATE = 44100;
         private const float SMOOTHING_FACTOR = 0.3f; // Lower for more responsive, higher for smoother
-        private const float BASS_BOOST = 1.8f; // Emphasize bass frequencies (reduced from 2.5f)
-        private const float MID_BOOST = 1.2f; // Emphasize mid frequencies (reduced from 1.5f)
-        private const float SCALE_FACTOR = 2.5f; // Amplify overall visualization (reduced from 4.0f)
+        private const float BASS_BOOST = 1.8f; // Emphasize bass frequencies
+        private const float MID_BOOST = 1.2f; // Emphasize mid frequencies
+        private const float SCALE_FACTOR = 2.5f; // Amplify overall visualization
 
         // State and resources
         private readonly List<Rectangle> _bars = new();
@@ -71,7 +71,7 @@ namespace Harmony.Controls
                 nameof(VisualizationColor),
                 typeof(Color),
                 typeof(AudioVisualizer),
-                new PropertyMetadata(Colors.Purple));
+                new PropertyMetadata(Colors.LimeGreen));
 
         public Color VisualizationColor
         {
@@ -426,13 +426,28 @@ namespace Harmony.Controls
             // Apply height animation
             bar.BeginAnimation(HeightProperty, heightAnimation);
 
-            // Animate the color based on intensity
+            // Animate the color based on intensity with green theme
             if (bar.Fill is SolidColorBrush brush)
             {
-                // Base color is the visualization color property
-                byte r = (byte)Math.Min(255, VisualizationColor.R + (255 - VisualizationColor.R) * intensity * 0.7);
-                byte g = (byte)Math.Min(255, VisualizationColor.G + (255 - VisualizationColor.G) * intensity * 0.7);
-                byte b = (byte)Math.Min(255, VisualizationColor.B + (255 - VisualizationColor.B) * intensity * 0.7);
+                // Base color is green theme
+                var baseColor = VisualizationColor; // Green color from property
+
+                // Calculate luminosity based on intensity
+                float luminosity = 0.4f + (intensity * 0.6f);
+
+                // Create color variations based on intensity
+                byte r = (byte)Math.Min(255, baseColor.R * luminosity + intensity * 50);
+                byte g = (byte)Math.Min(255, baseColor.G * luminosity + intensity * 30);
+                byte b = (byte)Math.Min(255, baseColor.B * luminosity + intensity * 100);
+
+                // Add some white highlights for higher intensities
+                if (intensity > 0.7f)
+                {
+                    float whiteMix = (intensity - 0.7f) / 0.3f;
+                    r = (byte)(r + (255 - r) * whiteMix * 0.3f);
+                    g = (byte)(g + (255 - g) * whiteMix * 0.3f);
+                    b = (byte)(b + (255 - b) * whiteMix * 0.3f);
+                }
 
                 var targetColor = Color.FromRgb(r, g, b);
 
@@ -460,8 +475,8 @@ namespace Harmony.Controls
 
             // Create the visualizer bars with optimal spacing
             int barCount = DEFAULT_BAR_COUNT;
-            double barWidth = Math.Max(3, ActualWidth / (barCount * 1.2));
-            double spacing = barWidth / 4;
+            double barWidth = Math.Max(3, ActualWidth / (barCount * 1.4));
+            double spacing = barWidth / 3;
             double totalWidth = barWidth * barCount + spacing * (barCount - 1);
             double startX = (ActualWidth - totalWidth) / 2;
 
@@ -472,14 +487,14 @@ namespace Harmony.Controls
                     Width = barWidth,
                     Height = _minBarHeight,
                     Fill = new SolidColorBrush(VisualizationColor),
-                    RadiusX = barWidth * 0.3, // Rounded corners
-                    RadiusY = barWidth * 0.3,
+                    RadiusX = barWidth * 0.2, // Slightly rounded corners
+                    RadiusY = barWidth * 0.2,
                     Effect = new System.Windows.Media.Effects.DropShadowEffect
                     {
                         Color = Colors.Black,
                         Direction = 270,
-                        ShadowDepth = 2,
-                        BlurRadius = 4,
+                        ShadowDepth = 1,
+                        BlurRadius = 2,
                         Opacity = 0.5
                     }
                 };
