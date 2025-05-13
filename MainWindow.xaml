@@ -7,6 +7,7 @@
         xmlns:utils="clr-namespace:Harmony.Utils"
         xmlns:models="clr-namespace:Harmony.Models"
         xmlns:controls="clr-namespace:Harmony.Controls"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
         Title="Harmony Music Player" Height="650" Width="1000"
         Background="#121212">
@@ -229,37 +230,16 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Lyrics Display -->
+                <!-- Lyrics Display - Simplified version -->
                 <Border Grid.Row="0" Background="#111111" Margin="10,10,10,5">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <TextBlock Foreground="White" 
-                                  FontSize="16" 
-                                  Padding="10"
-                                  TextWrapping="Wrap"
-                                  TextAlignment="Center">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="Select a track to view lyrics"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CurrentTrack}" Value="{x:Null}">
-                                            <Setter Property="Text" Value="Select a track to view lyrics"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding CurrentLyrics}" Value="">
-                                            <Setter Property="Text" Value="No lyrics available for this track."/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding CurrentLyrics}">
-                                            <DataTrigger.Value>
-                                                <x:Null/>
-                                            </DataTrigger.Value>
-                                            <Setter Property="Text" Value="No lyrics available for this track."/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding HasLyrics}" Value="True">
-                                            <Setter Property="Text" Value="{Binding CurrentLyrics}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                        <TextBlock Name="LyricsTextBlock"
+                                   Text="{Binding DisplayLyrics}"
+                                   Foreground="White" 
+                                   FontSize="14" 
+                                   Padding="10"
+                                   TextWrapping="Wrap"
+                                   LineHeight="20"/>
                     </ScrollViewer>
                 </Border>
 

@@ -11,7 +11,7 @@ using System.Text;
 namespace Harmony.Services
 {
     /// <summary>
-    /// Enhanced lyrics service with LRCLIB integration
+    /// Enhanced lyrics service with correct LRCLIB API implementation
     /// </summary>
     public class LyricsService : IDisposable
     {
@@ -47,6 +47,7 @@ namespace Harmony.Services
                 lyrics = await Task.Run(() => GetLyricsFromMetadata(audioFile));
                 if (!string.IsNullOrEmpty(lyrics))
                 {
+                    System.Diagnostics.Debug.WriteLine($"Found lyrics in metadata for {audioFile.Title}");
                     _lyricsCache[cacheKey] = lyrics;
                     return lyrics;
                 }
@@ -55,14 +56,16 @@ namespace Harmony.Services
                 lyrics = await Task.Run(() => GetLyricsFromFile(audioFile));
                 if (!string.IsNullOrEmpty(lyrics))
                 {
+                    System.Diagnostics.Debug.WriteLine($"Found lyrics in file for {audioFile.Title}");
                     _lyricsCache[cacheKey] = lyrics;
                     return lyrics;
                 }
 
-                // 3. Try LRCLIB (free online service)
+                // 3. Try LRCLIB with multiple search strategies
                 lyrics = await GetLyricsFromLRCLIB(audioFile);
                 if (!string.IsNullOrEmpty(lyrics))
                 {
+                    System.Diagnostics.Debug.WriteLine($"Found lyrics from LRCLIB for {audioFile.Title}");
                     _lyricsCache[cacheKey] = lyrics;
                     // Optionally save to file for future use
                     await SaveLyricsToFileAsync(audioFile, lyrics);
@@ -71,11 +74,12 @@ namespace Harmony.Services
 
                 // Cache empty result to avoid repeated lookups
                 _lyricsCache[cacheKey] = string.Empty;
+                System.Diagnostics.Debug.WriteLine($"No lyrics found for {audioFile.Artist} - {audioFile.Title}");
                 return string.Empty;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error getting lyrics: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error getting lyrics for {audioFile.Title}: {ex.Message}");
                 _lyricsCache[cacheKey] = string.Empty;
                 return string.Empty;
             }
@@ -90,54 +94,117 @@ namespace Harmony.Services
         }
 
         /// <summary>
-        /// Gets lyrics from LRCLIB (free service)
+        /// Gets lyrics from LRCLIB using the correct API format
         /// </summary>
         private async Task<string> GetLyricsFromLRCLIB(AudioFile audioFile)
         {
-            try
+            // Try multiple search strategies
+            var searchStrategies = new List<(string artist, string title, string album)>
             {
-                string encodedArtist = Uri.EscapeDataString(CleanSearchTerm(audioFile.Artist));
-                string encodedTitle = Uri.EscapeDataString(CleanSearchTerm(audioFile.Title));
+                // Strategy 1: Exact match
+                (audioFile.Artist, audioFile.Title, audioFile.Album),
+                
+                // Strategy 2: Clean search terms
+                (CleanSearchTerm(audioFile.Artist), CleanSearchTerm(audioFile.Title), CleanSearchTerm(audioFile.Album)),
+                
+                // Strategy 3: Without album
+                (CleanSearchTerm(audioFile.Artist), CleanSearchTerm(audioFile.Title), ""),
+                
+                // Strategy 4: Remove "The" from artist if present
+                (RemoveArticles(CleanSearchTerm(audioFile.Artist)), CleanSearchTerm(audioFile.Title), "")
+            };
 
-                string url = $"https://lrclib.net/api/get?artist_name={encodedArtist}&track_name={encodedTitle}";
+            foreach (var (artist, title, album) in searchStrategies)
+            {
+                if (string.IsNullOrEmpty(artist) || string.IsNullOrEmpty(title))
+                    continue;
 
-                // Add album if available for better matching
-                if (!string.IsNullOrEmpty(audioFile.Album) && audioFile.Album != "Unknown Album")
+                try
                 {
-                    string encodedAlbum = Uri.EscapeDataString(CleanSearchTerm(audioFile.Album));
-                    url += $"&album_name={encodedAlbum}";
-                }
-
-                var response = await _httpClient.GetAsync(url);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    string jsonResponse = await response.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(jsonResponse);
-
-                    // Try synced lyrics first (LRC format)
-                    if (doc.RootElement.TryGetProperty("syncedLyrics", out var syncedLyrics) &&
-                        !string.IsNullOrEmpty(syncedLyrics.GetString()))
+                    // Build URL with proper parameter names
+                    var queryParams = new List<string>
                     {
-                        System.Diagnostics.Debug.WriteLine($"Found synced lyrics from LRCLIB for {audioFile.Title}");
-                        return CleanLyrics(syncedLyrics.GetString());
+                        $"artist_name={Uri.EscapeDataString(artist)}",
+                        $"track_name={Uri.EscapeDataString(title)}"
+                    };
+
+                    // Add album if available
+                    if (!string.IsNullOrEmpty(album) && album != "Unknown Album")
+                    {
+                        queryParams.Add($"album_name={Uri.EscapeDataString(album)}");
                     }
 
-                    // Fallback to plain lyrics
-                    if (doc.RootElement.TryGetProperty("plainLyrics", out var plainLyrics) &&
-                        !string.IsNullOrEmpty(plainLyrics.GetString()))
+                    // Add duration if available (convert to seconds)
+                    if (audioFile.Duration.TotalSeconds > 0)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Found plain lyrics from LRCLIB for {audioFile.Title}");
-                        return CleanLyrics(plainLyrics.GetString());
+                        queryParams.Add($"duration={Math.Round(audioFile.Duration.TotalSeconds)}");
+                    }
+
+                    string url = $"https://lrclib.net/api/get?{string.Join("&", queryParams)}";
+
+                    System.Diagnostics.Debug.WriteLine($"Trying LRCLIB: {artist} - {title}");
+                    System.Diagnostics.Debug.WriteLine($"URL: {url}");
+
+                    var response = await _httpClient.GetAsync(url);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string jsonResponse = await response.Content.ReadAsStringAsync();
+                        System.Diagnostics.Debug.WriteLine($"LRCLIB Response: {jsonResponse}");
+
+                        if (!string.IsNullOrEmpty(jsonResponse))
+                        {
+                            using var doc = JsonDocument.Parse(jsonResponse);
+
+                            // Try synced lyrics first (correct property name)
+                            if (doc.RootElement.TryGetProperty("syncedLyrics", out var syncedLyrics) &&
+                                syncedLyrics.ValueKind != JsonValueKind.Null &&
+                                !string.IsNullOrEmpty(syncedLyrics.GetString()))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Found synced lyrics from LRCLIB for {title}");
+                                return CleanLyrics(syncedLyrics.GetString());
+                            }
+
+                            // Fallback to plain lyrics (correct property name)
+                            if (doc.RootElement.TryGetProperty("plainLyrics", out var plainLyrics) &&
+                                plainLyrics.ValueKind != JsonValueKind.Null &&
+                                !string.IsNullOrEmpty(plainLyrics.GetString()))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Found plain lyrics from LRCLIB for {title}");
+                                return CleanLyrics(plainLyrics.GetString());
+                            }
+
+                            System.Diagnostics.Debug.WriteLine("Response had no lyrics (both syncedLyrics and plainLyrics were null/empty)");
+                        }
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"LRCLIB returned {response.StatusCode} for {artist} - {title}");
+                        string errorContent = await response.Content.ReadAsStringAsync();
+                        System.Diagnostics.Debug.WriteLine($"Error content: {errorContent}");
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"LRCLIB API error: {ex.Message}");
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LRCLIB API error for {artist} - {title}: {ex.Message}");
+                }
             }
 
             return string.Empty;
+        }
+
+        /// <summary>
+        /// Removes common articles from artist names
+        /// </summary>
+        private string RemoveArticles(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+
+            // Remove "The " from the beginning
+            if (text.StartsWith("The ", StringComparison.OrdinalIgnoreCase))
+                return text.Substring(4);
+
+            return text;
         }
 
         /// <summary>
@@ -296,10 +363,14 @@ namespace Harmony.Services
 
             // Remove common prefixes/suffixes that might interfere with search
             term = term.Replace(" feat.", " ft.").Replace(" featuring ", " ft. ");
+            term = term.Replace(" feat ", " ft. ").Replace(" ft ", " ft. ");
 
             // Remove content in parentheses and brackets (like "Remastered" or "Radio Edit")
             term = Regex.Replace(term, @"\s*\([^)]*\)", "");
             term = Regex.Replace(term, @"\s*\[[^\]]*\]", "");
+
+            // Remove extra whitespace
+            term = Regex.Replace(term, @"\s+", " ");
 
             return term.Trim();
         }
