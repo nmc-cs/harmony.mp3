@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Windows.Media.Imaging;
-using System.Linq;  // Add this for LINQ methods
+using System.Linq;
 
 namespace Harmony.Models
 {
@@ -28,88 +28,211 @@ namespace Harmony.Models
             {
                 using (var file = TagLib.File.Create(FilePath))
                 {
-                    // Load basic metadata
-                    Title = string.IsNullOrEmpty(file.Tag.Title)
-                        ? Path.GetFileNameWithoutExtension(FilePath)
-                        : file.Tag.Title;
-
-                    Artist = string.IsNullOrEmpty(file.Tag.FirstPerformer)
-                        ? "Unknown Artist"
-                        : file.Tag.FirstPerformer;
-
-                    Album = string.IsNullOrEmpty(file.Tag.Album)
-                        ? "Unknown Album"
-                        : file.Tag.Album;
-
+                    // First, try to extract from metadata
+                    Title = file.Tag.Title;
+                    Artist = file.Tag.FirstPerformer;
+                    Album = file.Tag.Album;
                     Duration = file.Properties.Duration;
 
-                    // Extract lyrics if available - this will work with MP3 files that have embedded lyrics
-                    Lyrics = file.Tag.Lyrics ?? string.Empty;
+                    // Extract lyrics from various sources
+                    ExtractLyrics(file);
 
-                    // Some MP3 files might have lyrics in USLT frames (ID3v2)
-                    if (string.IsNullOrEmpty(Lyrics) && file.Tag.Lyrics != null)
+                    // Load album art if available
+                    LoadAlbumArt(file);
+
+                    // If metadata is missing or poor, try to extract from filename
+                    if (IsMetadataPoor())
                     {
-                        // Try to get lyrics from different possible sources
-                        if (file.GetTag(TagLib.TagTypes.Id3v2) is TagLib.Id3v2.Tag id3v2)
-                        {
-                            // Look for USLT (Unsynchronized Lyrics) frames
-                            var usltFrames = id3v2.GetFrames("USLT").ToList();
-                            if (usltFrames != null && usltFrames.Count > 0)
-                            {
-                                if (usltFrames.First() is TagLib.Id3v2.UnsynchronisedLyricsFrame lyricsFrame)
-                                {
-                                    Lyrics = lyricsFrame.Text ?? string.Empty;
-                                }
-                            }
+                        ExtractFromFilename();
+                    }
 
-                            // Also check for SYLT (Synchronized Lyrics) frames as fallback
-                            if (string.IsNullOrEmpty(Lyrics))
-                            {
-                                var syltFrames = id3v2.GetFrames("SYLT").ToList();
-                                if (syltFrames != null && syltFrames.Count > 0)
-                                {
-                                    if (syltFrames.First() is TagLib.Id3v2.SynchronisedLyricsFrame syncLyricsFrame)
-                                    {
-                                        // Extract text from synchronized lyrics (ignoring timestamps)
-                                        var lyricsText = "";
-                                        foreach (var item in syncLyricsFrame.Text)
-                                        {
-                                            lyricsText += item.Text + "\n";
-                                        }
-                                        Lyrics = lyricsText.Trim();
-                                    }
-                                }
-                            }
+                    // Ensure we have reasonable defaults
+                    if (string.IsNullOrEmpty(Title))
+                        Title = Path.GetFileNameWithoutExtension(FilePath);
+                    if (string.IsNullOrEmpty(Artist))
+                        Artist = "Unknown Artist";
+                    if (string.IsNullOrEmpty(Album))
+                        Album = "Unknown Album";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading metadata for {FilePath}: {ex.Message}");
+
+                // Fallback to filename parsing
+                ExtractFromFilename();
+
+                // Set defaults
+                if (string.IsNullOrEmpty(Title))
+                    Title = Path.GetFileNameWithoutExtension(FilePath);
+                if (string.IsNullOrEmpty(Artist))
+                    Artist = "Unknown Artist";
+                if (string.IsNullOrEmpty(Album))
+                    Album = "Unknown Album";
+                Lyrics = string.Empty;
+            }
+        }
+
+        private void ExtractLyrics(TagLib.File file)
+        {
+            try
+            {
+                // Try standard lyrics tag first
+                if (!string.IsNullOrEmpty(file.Tag.Lyrics))
+                {
+                    Lyrics = file.Tag.Lyrics;
+                    return;
+                }
+
+                // Check ID3v2 frames for lyrics
+                if (file.GetTag(TagLib.TagTypes.Id3v2) is TagLib.Id3v2.Tag id3v2)
+                {
+                    // Look for USLT (Unsynchronized Lyrics) frames
+                    var usltFrames = id3v2.GetFrames("USLT").ToList();
+                    if (usltFrames.Count > 0)
+                    {
+                        if (usltFrames[0] is TagLib.Id3v2.UnsynchronisedLyricsFrame lyricsFrame)
+                        {
+                            Lyrics = lyricsFrame.Text ?? string.Empty;
+                            return;
                         }
                     }
 
-                    // Load album art if available
-                    if (file.Tag.Pictures.Length > 0)
+                    // Look for SYLT (Synchronized Lyrics) frames as fallback
+                    var syltFrames = id3v2.GetFrames("SYLT").ToList();
+                    if (syltFrames.Count > 0)
                     {
-                        var picture = file.Tag.Pictures[0];
-                        using (var stream = new MemoryStream(picture.Data.Data))
+                        if (syltFrames[0] is TagLib.Id3v2.SynchronisedLyricsFrame syncLyricsFrame)
                         {
-                            var bitmap = new BitmapImage();
-                            bitmap.BeginInit();
-                            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                            bitmap.StreamSource = stream;
-                            bitmap.EndInit();
-                            bitmap.Freeze(); // Make it thread-safe
-                            AlbumArt = bitmap;
+                            var lyricsText = "";
+                            foreach (var item in syncLyricsFrame.Text)
+                            {
+                                lyricsText += item.Text + "\n";
+                            }
+                            Lyrics = lyricsText.Trim();
+                            return;
                         }
+                    }
+                }
+
+                // Try other tag types if available
+                foreach (TagLib.TagTypes tagType in Enum.GetValues<TagLib.TagTypes>())
+                {
+                    try
+                    {
+                        var tag = file.GetTag(tagType);
+                        if (tag != null && !string.IsNullOrEmpty(tag.Lyrics))
+                        {
+                            Lyrics = tag.Lyrics;
+                            return;
+                        }
+                    }
+                    catch
+                    {
+                        // Continue with next tag type
+                    }
+                }
+
+                Lyrics = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error extracting lyrics: {ex.Message}");
+                Lyrics = string.Empty;
+            }
+        }
+
+        private void LoadAlbumArt(TagLib.File file)
+        {
+            try
+            {
+                if (file.Tag.Pictures.Length > 0)
+                {
+                    var picture = file.Tag.Pictures[0];
+                    using (var stream = new MemoryStream(picture.Data.Data))
+                    {
+                        var bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.StreamSource = stream;
+                        bitmap.EndInit();
+                        bitmap.Freeze(); // Make it thread-safe
+                        AlbumArt = bitmap;
                     }
                 }
             }
             catch (Exception ex)
             {
-                // Log the error for debugging
-                System.Diagnostics.Debug.WriteLine($"Error loading metadata for {FilePath}: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error loading album art: {ex.Message}");
+                AlbumArt = null;
+            }
+        }
 
-                // Fallback to filename if metadata loading fails
-                Title = Path.GetFileNameWithoutExtension(FilePath);
-                Artist = "Unknown Artist";
-                Album = "Unknown Album";
-                Lyrics = string.Empty;
+        private bool IsMetadataPoor()
+        {
+            // Check if metadata seems to be from YouTube download or similar
+            return string.IsNullOrEmpty(Title) ||
+                   string.IsNullOrEmpty(Artist) ||
+                   Artist == "Unknown Artist" ||
+                   Title.Contains("Official") ||
+                   Title.Contains("(Official") ||
+                   Title.Contains("[Official") ||
+                   Artist.Contains("Various") ||
+                   Artist.Contains("YouTube");
+        }
+
+        private void ExtractFromFilename()
+        {
+            try
+            {
+                string filename = Path.GetFileNameWithoutExtension(FilePath);
+
+                // Common patterns in YouTube downloads and similar files
+                var patterns = new[]
+                {
+                    // "Artist - Title (Official Video)"
+                    @"^(.+?)\s*-\s*(.+?)\s*\((Official|Music|Audio|Video|Live|Acoustic|Remix).*?\)\s*$",
+                    // "Artist - Title [Official Video]"
+                    @"^(.+?)\s*-\s*(.+?)\s*\[(Official|Music|Audio|Video|Live|Acoustic|Remix).*?\]\s*$",
+                    // "Artist - Title"
+                    @"^(.+?)\s*-\s*(.+)$",
+                    // "Title - Artist" (less common)
+                    @"^(.+?)\s*-\s*(.+)$"
+                };
+
+                foreach (string pattern in patterns)
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(filename, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (match.Success)
+                    {
+                        string firstPart = match.Groups[1].Value.Trim();
+                        string secondPart = match.Groups[2].Value.Trim();
+
+                        // Try to determine which is artist and which is title
+                        // Usually artist comes first, but not always
+                        if (string.IsNullOrEmpty(Artist) || Artist == "Unknown Artist")
+                        {
+                            Artist = firstPart;
+                        }
+                        if (string.IsNullOrEmpty(Title))
+                        {
+                            Title = secondPart;
+                        }
+
+                        System.Diagnostics.Debug.WriteLine($"Extracted from filename: Artist='{Artist}', Title='{Title}'");
+                        return;
+                    }
+                }
+
+                // If no pattern matches, use the whole filename as title
+                if (string.IsNullOrEmpty(Title))
+                {
+                    Title = filename;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error extracting from filename: {ex.Message}");
             }
         }
 
